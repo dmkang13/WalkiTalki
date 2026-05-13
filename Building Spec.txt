@@ -1,0 +1,219 @@
+WalkiTalki Building Spec
+========================
+
+Purpose
+-------
+Build a language-learning app that creates lessons from the user's real life:
+what they see, hear, write, and talk about. The app should feel active,
+contextual, and social, helping users practice language through everyday
+moments instead of only isolated drills.
+
+
+Core Product Idea
+-----------------
+WalkiTalki is an AI-assisted language practice app. The user can start from a
+photo, a live listening moment, a writing prompt, or a simulated conversation,
+and the app turns that context into a lesson matched to the user's difficulty
+level.
+
+Primary goal:
+- Help users learn vocabulary and expression through real-world context.
+
+Secondary goals:
+- Make practice feel conversational and creative.
+- Let users share, critique, and verify learning materials with friends.
+- Adapt difficulty using learner-level signals.
+
+
+Feature Areas
+-------------
+
+1. Photo-Based Language Lessons
+-------------------------------
+Idea:
+- Have an agent take a photo of what is in front of the user and start a
+  language lesson from it.
+
+Possible flow:
+- User opens camera.
+- App identifies visible objects, actions, and scene context.
+- App generates vocabulary, phrases, and example sentences.
+- App starts a short lesson using the target language.
+- User can practice speaking, writing, listening, or flashcards from the scene.
+
+Questions to answer:
+- Should the user take the photo manually, or can the app suggest moments?
+- Should lessons focus on nouns first, or include phrases and situations?
+- How much should the app explain in the user's native language?
+
+
+2. Listening Companion Mode
+---------------------------
+Idea:
+- App listens to a sermon or other spoken content and assists the user by
+  defining slightly more difficult words.
+
+Possible flow:
+- User starts listening mode.
+- App transcribes or follows along with audio.
+- App detects words slightly above the user's level.
+- App shows definitions, translations, examples, and optional flashcard saves.
+
+Use cases:
+- Sermons
+- Lectures
+- Podcasts
+- Conversations
+- Videos
+
+Questions to answer:
+- Does the app need real-time listening, or can it process recorded audio?
+- Should definitions appear immediately or after the session?
+- How should privacy and microphone permissions be handled?
+
+
+3. Adaptive Difficulty and ELO System
+-------------------------------------
+Idea:
+- Assign ELO-style scores to users to determine the difficulty of a language
+  lesson.
+
+Possible system:
+- Each user has a language-level score.
+- Each word, phrase, listening clip, and writing prompt has a difficulty score.
+- Successful recall, correct usage, and comprehension raise the user's score.
+- Struggles, skipped items, or repeated mistakes lower confidence for that area.
+
+Applications:
+- Pick words from a photo that are challenging but not overwhelming.
+- Choose listening vocabulary that is slightly above the user's current level.
+- Adjust writing prompts and conversation options.
+- Recommend flashcards and review sessions.
+
+Questions to answer:
+- Should there be one global ELO score or separate scores for vocabulary,
+  listening, speaking, writing, and grammar?
+- How should confidence differ from ability?
+- How transparent should the score be to users?
+
+
+4. Writing Practice and Story Sharing
+-------------------------------------
+Idea:
+- Give users a space to practice writing stories using words they learned this
+  week.
+- Let users share stories with friends, receive comments, and receive criticism.
+
+Possible flow:
+- App selects recent learned words.
+- User writes a story, essay, or short response using those words.
+- App gives feedback on grammar, vocabulary use, and style.
+- User can share with friends.
+- Friends can comment, suggest edits, or critique.
+
+Related idea:
+- Chat mode for writing essays and answers to thought-provoking questions.
+
+Questions to answer:
+- Should writing be open-ended, prompt-based, or both?
+- Should AI feedback happen before or after friend feedback?
+- Should critiques be guided by rubrics?
+
+
+5. Conversation Practice Mode
+-----------------------------
+Idea:
+- Chat mode where users hear a conversation and choose reaction responses.
+
+Possible flow:
+- App plays or displays a conversation in the target language.
+- User chooses from possible responses.
+- App explains tone, meaning, and cultural context.
+- User can retry with harder or more natural responses.
+
+Potential modes:
+- Multiple-choice reactions
+- Open-ended speaking response
+- Roleplay conversation
+- Listening comprehension quiz
+
+Questions to answer:
+- Should conversations be scripted, AI-generated, or based on real situations?
+- Should users speak responses aloud or select responses first?
+- How should the app evaluate naturalness, not just correctness?
+
+
+6. Flashcards and Community Verification
+----------------------------------------
+Idea:
+- Allow users to generate and share flashcards so other users can verify them.
+
+Possible flow:
+- User saves words or phrases from lessons.
+- App generates flashcards with definition, translation, example sentence, and
+  audio.
+- User can share decks.
+- Other users can verify, correct, or suggest improvements.
+
+Questions to answer:
+- What does "verified" mean?
+- Who can verify cards: friends, advanced learners, moderators, or AI?
+- Should incorrect cards be hidden, flagged, or improved collaboratively?
+
+
+7. Social Layer
+---------------
+Ideas:
+- Share writing with friends.
+- Comment on stories.
+- Critique user submissions.
+- Share and verify flashcards.
+
+Possible social objects:
+- Stories
+- Essays
+- Flashcard decks
+- Lesson snapshots
+- Vocabulary lists
+- Tier lists or sorting games
+
+Questions to answer:
+- Is the app friend-based, classroom-based, or public-community based?
+- Should users follow each other?
+- Should feedback be private by default?
+
+
+Research Tasks
+--------------
+- Babbel
+- Speak.com
+- Walking Charlie's app
+
+
+Open Product Questions
+----------------------
+- What is the first version of the app: photo lessons, listening companion,
+  writing practice, or conversation mode?
+- Who is the initial user: casual learner, student, immigrant, traveler,
+  sermon listener, or language hobbyist?
+- What target language should be supported first?
+- Is the core experience mobile-first?
+- How social should the first version be?
+- What user data is needed to personalize lessons safely?
+
+
+Possible MVP
+------------
+The strongest MVP may be:
+
+1. User takes a photo.
+2. App identifies useful vocabulary and phrases.
+3. App generates a short lesson matched to the user's level.
+4. User saves selected words as flashcards.
+5. User completes a short writing or speaking exercise using those words.
+
+Why this MVP:
+- It captures the unique WalkiTalki idea.
+- It is concrete and demoable.
+- It can later connect naturally to listening, writing, flashcards, ELO, and
+  social sharing.
