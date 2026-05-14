@@ -23,9 +23,10 @@ An agent is a saved configuration that includes:
 - Tool permissions
 - OpenAPI-backed API tools
 - Memory configuration
+- Vector store configuration
 - Database access configuration
 - Script or workflow access
-- Runtime permissions such as camera or microphone
+- Runtime permissions such as camera
 - Sharing permissions
 - Version history
 
@@ -59,7 +60,7 @@ must stay server-side.
   and recently used agents.
 - Agent Builder: main workspace for assembling an agent from blocks.
 - Agent Detail: public or private profile page for one agent.
-- Agent Runner: chat, voice, camera, or task interface for using an agent.
+- Agent Runner: chat, camera, or task interface for using an agent.
 - Shared Agent Gallery: browsable list of community or team agents.
 - Version History: compare, restore, fork, or publish prior agent versions.
 
@@ -67,7 +68,8 @@ must stay server-side.
 
 The builder should have four major areas:
 
-- Block Tray: available tools, skills, models, memories, APIs, and data sources.
+- Block Tray: available tools, skills, models, memories, vector stores, APIs, and
+  data sources.
 - Agent Canvas: current agent assembled as editable blocks.
 - Inspector Panel: settings for the selected block.
 - Test Console: quick place to run the agent and see what tools it tries to use.
@@ -185,31 +187,23 @@ Runner UI:
 WalkiTalki use:
 - Photo-based language lessons from real-world objects and scenes.
 
-### 5. Microphone and Audio Access
+### 5. Microphone and Audio Access (Deferred)
 
 What it does:
-- Allows recording, transcription, pronunciation checks, or live listening.
+- Would allow recording, transcription, pronunciation checks, or live listening.
 
-Builder UX:
-- Audio block with mode choices:
-  - Record and submit
-  - Live transcription
-  - Pronunciation practice
-  - Listening companion
-
-Runner UI:
-- Push-to-talk or start listening button.
-- Visible recording state.
-- Transcript review before saving or sharing.
-
-WalkiTalki use:
-- Sermon, podcast, lecture, or conversation vocabulary help.
+Current decision:
+- Hold this back for now.
+- Do not include microphone permissions, live listening, audio upload, voice
+  chat, pronunciation scoring, or audio transcription in the MVP builder.
+- Keep the architecture open for a future audio block, but avoid designing the
+  first agent experience around always-listening behavior.
 
 ### 6. Memory
 
 What it does:
 - Lets an agent remember user preferences, past sessions, learned words, goals,
-  mistakes, and progress.
+  mistakes, and progress so future interactions feel personalized.
 
 Builder UX:
 - Memory block with toggles:
@@ -228,14 +222,54 @@ Runner UI:
 Backend note:
 - Separate private user memory from shared agent definition.
 - Agent sharing should not copy personal memory unless the user exports it.
+- Memory should stay user-specific, editable, and private by default.
+- Memory is not the source of truth for shared product objects such as agents,
+  skill ids, flashcards, documents, stories, comments, or progress records.
 
-### 7. Database Access
+### 7. Vector Stores
 
 What it does:
-- Allows an agent to read or write approved WalkiTalki data.
+- Gives an agent semantic recall over memory-like information using embeddings
+  and similarity search. Use this for fuzzy retrieval over prior experiences,
+  notes, writing mistakes, conversation themes, and other chunk-based context.
+
+Builder UX:
+- Vector store block with selectable stores:
+  - Agent-specific session recall
+- Inspector controls scope, retention, retrieval count, and whether retrieved
+  items can be shown to the user.
+- Builder should label vector stores as "fuzzy recall" rather than structured
+  records.
+
+Runner UI:
+- Controls to remove a retrieved memory item or exclude it from future retrieval.
+- Clear indication when an answer used personal recall.
+
+Backend note:
+- Store vector store ids, ownership, sharing policy, and source metadata in
+  WalkiTalki.
+- Store embeddings and chunks in the chosen vector backend.
+- Treat vector results as context, not as durable source-of-truth product
+  records.
+- If a document or flashcard is indexed for semantic search, the database remains
+  the canonical record and the vector store holds retrievable chunks or summaries.
+
+### 8. Database Access
+
+What it does:
+- Allows an agent to read or write approved structured WalkiTalki data. Use this
+  for canonical product records that need to be queried, shared, versioned,
+  audited, or reused outside the current chat, including structured knowledge
+  sources such as uploaded documents, vocabulary lists, lesson content, and
+  flashcards.
 
 Builder UX:
 - Database block with selectable tables or resource types.
+- Knowledge source picker for uploading files or selecting existing collections.
+- Indexing status and source preview for uploaded or imported content.
+- Scope selector for private, shared, or public database-backed knowledge.
+- Option to create a vector index for semantic lookup while keeping the database
+  record canonical.
 - Plain-language permissions:
   - Read vocabulary
   - Create flashcards
@@ -243,16 +277,21 @@ Builder UX:
   - Write lesson results
   - Read shared stories
   - Comment on shared work
+  - Read uploaded documents
+  - Read document chunks or flashcard records
 
 Runner UI:
 - Agent activity log shows when data is read or written.
 - Confirmation for destructive or public writes.
+- Source citations when the agent answers from database-backed knowledge.
+- Source viewer for inspecting documents, chunks, flashcards, or other retrieved
+  records.
 
 Backend note:
 - Do not expose direct database credentials to agents or browsers.
 - Use scoped server endpoints and policy checks.
 
-### 8. OpenAPI API Tools
+### 9. OpenAPI API Tools
 
 What it does:
 - Turns external API operations into agent-callable tools.
@@ -278,7 +317,7 @@ Backend note:
 - Validate inputs against the OpenAPI schema before execution.
 - Return structured results to the LLM rather than raw unbounded responses.
 
-### 9. User API Key and Token Connections
+### 10. User API Key and Token Connections
 
 What it does:
 - Lets users connect their own API keys, bearer tokens, or provider credentials
@@ -318,7 +357,7 @@ Backend note:
 - All API calls using user keys must execute server-side through the tool
   runtime.
 
-### 10. Scripts
+### 11. Scripts
 
 What it does:
 - Allows agents to run approved scripts or workflows.
@@ -335,21 +374,6 @@ Runner UI:
 Backend note:
 - Scripts should run in a sandboxed job environment.
 - Store script ids and version ids on agent versions.
-
-### 11. Knowledge Sources
-
-What it does:
-- Gives the agent access to documents, vocabulary lists, lesson content,
-  imported notes, or other retrieval sources.
-
-Builder UX:
-- Knowledge block for uploading files or selecting existing collections.
-- Indexing status and source preview.
-- Scope selector for private, shared, or public sources.
-
-Runner UI:
-- Source citations when the agent answers from knowledge.
-- Source viewer for inspecting retrieved material.
 
 ### 12. Database Schemas
 
@@ -407,13 +431,15 @@ Runner UI:
 
 ### Main Backend Responsibilities
 
-- Store users, agents, skills, tool definitions, and sharing permissions.
+- Store users, agent ids, skill ids, vector store ids, tools, agent versions, and
+  sharing permissions.
 - Validate and store OpenAPI specs.
 - Convert selected OpenAPI operations into callable agent tools.
 - Store agent versions so shared agents are stable.
 - Execute tools through server-side permission checks.
 - Store encrypted references to user API keys and provider tokens.
-- Keep credentials, private memory, and database access off the client.
+- Keep credentials, private memory, vector store access, and database access off
+  the client.
 - Log agent runs, tool calls, approvals, and errors.
 
 ### Suggested Services
@@ -422,12 +448,106 @@ Runner UI:
 - App API: authentication, agent CRUD, sharing, comments, gallery, credential
   connections, and runs.
 - Agent runtime service: prepares model calls and executes approved tools.
-- Tool registry service: skills, scripts, OpenAPI operations, and database tools.
+- Tool registry service: skills, scripts, vector store tools, OpenAPI
+  operations, and database tools.
 - OpenAPI ingestion service: validates specs and creates normalized tool records.
 - Credential service: encrypts, stores, rotates, disables, and audits user API
   keys and provider tokens.
 - Memory service: private user memory and agent-scoped memory.
+- Vector store service: manages semantic retrieval stores, chunk metadata,
+  embedding jobs, and access policies.
 - Job service: sandboxed scripts, long-running imports, and evaluations.
+
+
+## OpenAI API vs WalkiTalki Database
+
+The OpenAI API should power model reasoning. The WalkiTalki database should own
+the platform state that makes agents shareable, permissioned, and reusable.
+
+### OpenAI API Responsibilities
+
+OpenAI should handle:
+
+- Model inference for chat, image understanding, planning, and response
+  generation.
+- Tool-call selection when WalkiTalki provides tool schemas for the current
+  agent run.
+- Structured output generation when WalkiTalki needs model output to match a
+  schema.
+- Embeddings, vector store retrieval, or classification if WalkiTalki chooses to
+  use OpenAI for semantic recall, search, or evaluation.
+
+OpenAI should not be the source of truth for:
+
+- WalkiTalki user accounts
+- Agent ids
+- Skill ids
+- Agent sharing permissions
+- Agent version history
+- API credentials
+- Vector store ownership and permissions
+- Database records
+- Flashcards, stories, comments, lessons, or progress
+- Public gallery listings
+- Audit logs
+
+### WalkiTalki Database Responsibilities
+
+WalkiTalki should handle:
+
+- User identity and access control.
+- Agent ids, names, owners, visibility, and current versions.
+- Agent version records, including model config, instructions, enabled tools,
+  skill ids, OpenAPI operation ids, and permission policies.
+- Skill ids and the skill registry because WalkiTalki is the platform where
+  users discover, share, fork, and reuse agents.
+- Tool definitions and tool configuration.
+- Imported OpenAPI specs and normalized OpenAPI operation records.
+- User API key references and credential grants.
+- Memory records and user preference summaries.
+- Vector store ids, ownership, source metadata, and access policies.
+- Durable product data such as uploaded documents, flashcards, lessons, stories,
+  comments, and learning progress.
+- Sharing, forking, gallery, classroom, and collaboration records.
+- Runtime logs, tool-call logs, and audit history.
+
+### Runtime Boundary
+
+1. User opens an agent.
+2. WalkiTalki loads the agent version, skill ids, tool configs, memory scope,
+   vector store grants, database permissions, OpenAPI operation ids, and
+   credential grants.
+3. WalkiTalki sends OpenAI only the instructions, relevant context, and the
+   allowed tool schemas for this run.
+4. OpenAI generates a response or proposes a tool call.
+5. WalkiTalki validates the tool call against its database permissions, OpenAPI
+   schemas, credential grants, and confirmation rules.
+6. WalkiTalki executes the tool server-side.
+7. WalkiTalki sends the tool result back to OpenAI.
+8. WalkiTalki stores any durable outcomes in its own database.
+
+### Skill ID Example
+
+If a shared "Photo Vocabulary Tutor" agent uses these skills:
+
+- `skill.photo_scene_vocabulary`
+- `skill.beginner_korean_examples`
+- `skill.flashcard_generation`
+
+Those skill ids live in WalkiTalki. When another user forks the agent,
+WalkiTalki copies references to the same skill ids into a new agent version.
+OpenAI receives the resolved instructions and tool schemas at runtime, but
+OpenAI does not manage the skill registry or decide who can share, fork, edit,
+or publish those skills.
+
+### Vector Store Example
+
+If a "Writing Coach" agent uses a personal recall vector store, WalkiTalki owns
+the vector store id, user grant, retention policy, and source metadata. The
+vector backend may store embeddings and return similar chunks, but WalkiTalki
+decides which chunks are allowed for the current user and agent. The canonical
+essay, comment, flashcard, or uploaded document still lives in the WalkiTalki
+database.
 
 
 ## Database Design
@@ -566,7 +686,7 @@ Runner UI:
 - requires_confirmation
 - parameter_defaults_json
 
-### Memory and Data Access Tables
+### Memory, Vector, and Data Access Tables
 
 `memories`
 - id
@@ -577,6 +697,38 @@ Runner UI:
 - visibility
 - created_at
 - updated_at
+
+`vector_stores`
+- id
+- owner_user_id
+- name
+- store_type
+- backend_provider
+- backend_store_ref
+- scope
+- retention_policy_json
+- visibility
+- created_at
+- updated_at
+
+`vector_store_items`
+- id
+- vector_store_id
+- source_type
+- source_id
+- chunk_ref
+- metadata_json
+- visibility
+- created_at
+- updated_at
+
+`agent_vector_stores`
+- id
+- agent_version_id
+- vector_store_id
+- retrieval_config_json
+- permissions_json
+- enabled
 
 `db_schemas`
 - id
@@ -593,6 +745,36 @@ Runner UI:
 - action
 - scope
 - policy_json
+
+`uploaded_documents`
+- id
+- owner_user_id
+- title
+- file_type
+- storage_ref
+- visibility
+- created_at
+- updated_at
+
+`document_chunks`
+- id
+- document_id
+- chunk_index
+- content_ref
+- metadata_json
+- created_at
+
+`flashcards`
+- id
+- owner_user_id
+- front
+- back
+- language
+- tags_json
+- source_type
+- source_id
+- created_at
+- updated_at
 
 ### Sharing Tables
 
@@ -736,16 +918,17 @@ Runtime rules:
 
 1. User opens an agent.
 2. Backend loads the current agent version.
-3. Backend resolves skills, tool definitions, memory scope, database
-   permissions, and API operations.
+3. Backend resolves skills, tool definitions, memory scope, vector store grants,
+   database permissions, and API operations.
 4. Runtime constructs the LLM request with the agent instructions and available
    tools.
-5. User sends text, image, audio, or another input.
+5. User sends text, image, or another supported input.
 6. LLM responds directly or requests a tool call.
 7. Backend validates and executes the tool call.
 8. Backend logs the tool call.
 9. LLM receives tool result and produces the final response.
-10. Runtime optionally writes memory or database records after policy checks.
+10. Runtime optionally writes memory, vector store items, or database records
+    after policy checks.
 
 
 ## MVP Scope
@@ -759,6 +942,7 @@ The first version should support:
 - Skills block using stored skill ids
 - Camera block for photo-based lessons
 - Memory block for vocabulary and preferences
+- Vector store block for memory-like semantic recall
 - Basic database permission block for flashcards and lesson progress
 - OpenAPI import with operation selection
 - User API key connection and encrypted credential storage
@@ -770,7 +954,8 @@ Defer until later:
 
 - Public marketplace ranking
 - Arbitrary user scripts
-- Live microphone streaming
+- Microphone and audio access, including recording, transcription,
+  pronunciation scoring, and live listening
 - Complex group administration
 - Paid agent publishing
 - Fully visual schema designer
@@ -781,6 +966,8 @@ Defer until later:
 - Blocks should be understandable before they are powerful.
 - Every permission should have a visible reason.
 - Sharing should copy agent structure, not private data.
+- Vector stores should provide recall context, while the database remains the
+  source of truth for structured WalkiTalki records.
 - OpenAPI tools should be selected operation-by-operation.
 - Credentials should stay server-side.
 - User-owned API keys should power shared agents without exposing or copying the
