@@ -34,17 +34,15 @@ Idea:
 - Have an agent take a photo of what is in front of the user and start a
   language lesson from it.
 
-Possible flow:
+Flow:
 - User opens camera.
 - App identifies visible objects, actions, and scene context.
 - App generates vocabulary, phrases, and example sentences.
-- App starts a short lesson using the target language.
-- User can practice speaking, writing, listening, or flashcards from the scene.
 
-Questions to answer:
-- Should the user take the photo manually, or can the app suggest moments?
-- Should lessons focus on nouns first, or include phrases and situations?
-- How much should the app explain in the user's native language?
+Related ideas:
+- Practice speaking, writing, listening, or flashcards from the same scene.
+- Let the app suggest lesson moments later, but start with manual photos.
+- Tune explanations based on how much native-language support the user wants.
 
 
 2. Listening Companion Mode
@@ -53,23 +51,17 @@ Idea:
 - App listens to a sermon or other spoken content and assists the user by
   defining slightly more difficult words.
 
-Possible flow:
-- User starts listening mode.
-- App transcribes or follows along with audio.
-- App detects words slightly above the user's level.
+Flow:
+- User starts listening mode for a sermon, lecture, podcast, conversation, or
+  video.
+- App transcribes or follows along with audio and detects words slightly above
+  the user's level.
 - App shows definitions, translations, examples, and optional flashcard saves.
 
-Use cases:
-- Sermons
-- Lectures
-- Podcasts
-- Conversations
-- Videos
-
-Questions to answer:
-- Does the app need real-time listening, or can it process recorded audio?
-- Should definitions appear immediately or after the session?
-- How should privacy and microphone permissions be handled?
+Related ideas:
+- Real-time listening or recorded audio processing.
+- Immediate definitions during the session or a recap afterward.
+- Clear privacy and microphone controls.
 
 
 3. Adaptive Difficulty and ELO System
@@ -78,23 +70,16 @@ Idea:
 - Assign ELO-style scores to users to determine the difficulty of a language
   lesson.
 
-Possible system:
+Flow:
 - Each user has a language-level score.
 - Each word, phrase, listening clip, and writing prompt has a difficulty score.
 - Successful recall, correct usage, and comprehension raise the user's score.
-- Struggles, skipped items, or repeated mistakes lower confidence for that area.
 
-Applications:
+Related ideas:
 - Pick words from a photo that are challenging but not overwhelming.
-- Choose listening vocabulary that is slightly above the user's current level.
-- Adjust writing prompts and conversation options.
-- Recommend flashcards and review sessions.
-
-Questions to answer:
-- Should there be one global ELO score or separate scores for vocabulary,
-  listening, speaking, writing, and grammar?
-- How should confidence differ from ability?
-- How transparent should the score be to users?
+- Adjust listening vocabulary, writing prompts, and conversation options.
+- Track separate confidence by vocabulary, listening, speaking, writing, and
+  grammar.
 
 
 4. Writing Practice and Story Sharing
@@ -104,20 +89,15 @@ Idea:
   week.
 - Let users share stories with friends, receive comments, and receive criticism.
 
-Possible flow:
+Flow:
 - App selects recent learned words.
 - User writes a story, essay, or short response using those words.
-- App gives feedback on grammar, vocabulary use, and style.
-- User can share with friends.
-- Friends can comment, suggest edits, or critique.
+- App gives feedback on grammar, vocabulary use, and style, then the user can
+  share with friends for comments or critique.
 
-Related idea:
+Related ideas:
 - Chat mode for writing essays and answers to thought-provoking questions.
-
-Questions to answer:
-- Should writing be open-ended, prompt-based, or both?
-- Should AI feedback happen before or after friend feedback?
-- Should critiques be guided by rubrics?
+- Rubric-guided critique from AI, friends, or both.
 
 
 5. Conversation Practice Mode
@@ -125,62 +105,87 @@ Questions to answer:
 Idea:
 - Chat mode where users hear a conversation and choose reaction responses.
 
-Possible flow:
+Flow:
 - App plays or displays a conversation in the target language.
 - User chooses from possible responses.
 - App explains tone, meaning, and cultural context.
 - User can retry with harder or more natural responses.
 
-Potential modes:
+Related ideas:
 - Multiple-choice reactions
 - Open-ended speaking response
-- Roleplay conversation
-- Listening comprehension quiz
-
-Questions to answer:
-- Should conversations be scripted, AI-generated, or based on real situations?
-- Should users speak responses aloud or select responses first?
-- How should the app evaluate naturalness, not just correctness?
+- Roleplay conversation or listening comprehension quiz
 
 
-6. Flashcards and Community Verification
+6. Narrative Thread Conversation Partner
+----------------------------------------
+Idea:
+- Maintain a persistent "Life Story" so conversation practice can refer back to
+  real people, places, goals, and prior roleplays.
+
+Flow:
+- App remembers details from past sessions, then uses them in new lessons, such
+  as mentioning Maria in Berlin during a travel lesson.
+- Roleplays can continue over time, such as starting today's session at the
+  airport after the user bought a ticket yesterday.
+
+Related ideas:
+- Use the Conversations API to pull context from previous thread_ids.
+- Use a Knowledge Skill to update a USER_BIO.json file in a Vector Store after
+  each session.
+
+
+7. Ghost of Errors Past Grammar Shadowing
+-----------------------------------------
+Idea:
+- Preserve conversation flow by saving many corrections for later instead of
+  interrupting every mistake live.
+
+Flow:
+- App tracks recurring error patterns over time, such as struggling with a tense
+  only when talking about work.
+- App generates custom drills from the student's real mistakes and tracks
+  Fluency Peaks to show improvement.
+
+Related ideas:
+- Run a background Reflective Agent after each conversation to analyze logs.
+- Update learning_profile.json in the student's small database.
+
+
+8. Flashcards and Community Verification
 ----------------------------------------
 Idea:
 - Allow users to generate and share flashcards so other users can verify them.
 
-Possible flow:
+Flow:
 - User saves words or phrases from lessons.
 - App generates flashcards with definition, translation, example sentence, and
   audio.
 - User can share decks.
 - Other users can verify, correct, or suggest improvements.
 
-Questions to answer:
-- What does "verified" mean?
-- Who can verify cards: friends, advanced learners, moderators, or AI?
-- Should incorrect cards be hidden, flagged, or improved collaboratively?
+Related ideas:
+- Verification by friends, advanced learners, moderators, or AI.
+- Flag incorrect cards and improve them collaboratively.
+- Share decks from lessons, writing prompts, or listening mode.
 
 
-7. Social Layer
+9. Social Layer
 ---------------
-Ideas:
-- Share writing with friends.
-- Comment on stories.
-- Critique user submissions.
-- Share and verify flashcards.
+Idea:
+- Add a social layer for sharing writing, commenting on stories, critiquing
+  submissions, and verifying flashcards.
 
-Possible social objects:
-- Stories
-- Essays
-- Flashcard decks
-- Lesson snapshots
-- Vocabulary lists
-- Tier lists or sorting games
+Flow:
+- User shares a story, essay, flashcard deck, lesson snapshot, or vocabulary
+  list.
+- Friends comment, suggest edits, critique, or verify learning materials.
+- User applies feedback and keeps practicing from the improved material.
 
-Questions to answer:
-- Is the app friend-based, classroom-based, or public-community based?
-- Should users follow each other?
-- Should feedback be private by default?
+Related ideas:
+- Stories, essays, flashcard decks, lesson snapshots, and vocabulary lists.
+- Tier lists or sorting games.
+- Friend-based, classroom-based, or public-community modes.
 
 
 Research Tasks
