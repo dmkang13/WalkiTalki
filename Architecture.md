@@ -278,7 +278,47 @@ Backend note:
 - Validate inputs against the OpenAPI schema before execution.
 - Return structured results to the LLM rather than raw unbounded responses.
 
-### 9. Scripts
+### 9. User API Key and Token Connections
+
+What it does:
+- Lets users connect their own API keys, bearer tokens, or provider credentials
+  so agents can use the user's quota, account, and permissions.
+
+Builder UX:
+- Credential block or connection step attached to OpenAPI tools and LLM
+  providers.
+- User can paste an API key, upload a token file if the provider requires it,
+  or complete an OAuth-style connection flow.
+- UI shows the credential label, provider, allowed scopes, last used date, and
+  whether the key is active.
+- After saving, the secret is never shown again. The user can only rename,
+  rotate, test, disable, or delete it.
+- Builder should clearly mark tools that require the user to bring their own
+  key before the agent can run.
+
+Runner UI:
+- If a shared agent requires a key, prompt the current user to connect their own
+  credential before running that tool.
+- Show which connected account or token will be charged before high-cost calls.
+- Let users set per-agent usage limits where possible, such as daily call caps
+  or maximum spend warnings.
+
+Sharing behavior:
+- A creator's API keys are never shared with other users.
+- Shared agents should include a list of required credential types, not the
+  actual credentials.
+- Forked agents inherit credential requirements but not credential values.
+- Each user decides which of their own saved keys can be used by the agent.
+
+Backend note:
+- Store encrypted credentials in a secrets store or encrypted credential table.
+- Store only a reference to the secret on agent connections.
+- Track key owner, provider, scopes, status, and last-used metadata.
+- Do not pass raw keys to the LLM or React client.
+- All API calls using user keys must execute server-side through the tool
+  runtime.
+
+### 10. Scripts
 
 What it does:
 - Allows agents to run approved scripts or workflows.
@@ -296,7 +336,7 @@ Backend note:
 - Scripts should run in a sandboxed job environment.
 - Store script ids and version ids on agent versions.
 
-### 10. Knowledge Sources
+### 11. Knowledge Sources
 
 What it does:
 - Gives the agent access to documents, vocabulary lists, lesson content,
@@ -311,7 +351,7 @@ Runner UI:
 - Source citations when the agent answers from knowledge.
 - Source viewer for inspecting retrieved material.
 
-### 11. Database Schemas
+### 12. Database Schemas
 
 What it does:
 - Defines structured data the agent can create, update, or query.
@@ -330,7 +370,7 @@ Backend note:
 - Store schema ids and version ids.
 - Validate generated records against schemas before writes.
 
-### 12. Sharing and Permission Policy
+### 13. Sharing and Permission Policy
 
 What it does:
 - Controls who can view, use, fork, edit, or publish an agent.
@@ -348,7 +388,7 @@ Runner UI:
 - Clear indicator when using someone else's agent.
 - Fork button creates a personal copy without copying private credentials.
 
-### 13. Evaluation and Safety Rules
+### 14. Evaluation and Safety Rules
 
 What it does:
 - Adds tests, guardrails, and expected behavior checks.
@@ -372,16 +412,20 @@ Runner UI:
 - Convert selected OpenAPI operations into callable agent tools.
 - Store agent versions so shared agents are stable.
 - Execute tools through server-side permission checks.
+- Store encrypted references to user API keys and provider tokens.
 - Keep credentials, private memory, and database access off the client.
 - Log agent runs, tool calls, approvals, and errors.
 
 ### Suggested Services
 
 - React client: builder, gallery, runner, and sharing UI.
-- App API: authentication, agent CRUD, sharing, comments, gallery, and runs.
+- App API: authentication, agent CRUD, sharing, comments, gallery, credential
+  connections, and runs.
 - Agent runtime service: prepares model calls and executes approved tools.
 - Tool registry service: skills, scripts, OpenAPI operations, and database tools.
 - OpenAPI ingestion service: validates specs and creates normalized tool records.
+- Credential service: encrypts, stores, rotates, disables, and audits user API
+  keys and provider tokens.
 - Memory service: private user memory and agent-scoped memory.
 - Job service: sandboxed scripts, long-running imports, and evaluations.
 
@@ -488,9 +532,29 @@ Runner UI:
 - owner_user_id
 - openapi_spec_id
 - auth_type
+- provider_name
+- credential_kind
+- key_label
+- secret_last_four
 - encrypted_credentials_ref
+- scopes_json
+- status
 - display_name
+- last_used_at
 - created_at
+- updated_at
+
+`credential_grants`
+- id
+- owner_user_id
+- agent_id
+- api_connection_id
+- allowed_tool_types_json
+- allowed_operation_ids_json
+- usage_limits_json
+- status
+- created_at
+- updated_at
 
 `agent_api_operations`
 - id
@@ -592,7 +656,8 @@ The OpenAPI flow should be explicit and permissioned:
    response bodies, and security schemes.
 4. Backend creates an operation list for the builder UI.
 5. User selects allowed operations.
-6. User connects auth credentials through a server-side connection flow.
+6. User connects auth credentials through a server-side connection flow or
+   chooses one of their saved API key connections.
 7. Agent version stores references to selected operation ids.
 8. At runtime, the agent proposes an operation call.
 9. Backend validates arguments against the operation schema.
@@ -609,6 +674,62 @@ Important constraints:
 - Require confirmation for writes, purchases, messages, deletes, or public posts.
 - Keep raw API responses size-limited and schema-shaped before returning them to
   the LLM.
+- Shared agents must ask each user to connect their own key when an operation
+  requires user-owned credentials.
+
+
+## User API Key Handling
+
+Users should be able to bring their own API keys and tokens, but the system
+should treat those credentials as private user-owned resources.
+
+Credential setup flow:
+
+1. User opens a credential connection screen from the agent builder, account
+   settings, or an API tool block.
+2. User chooses a provider or imported OpenAPI spec.
+3. User selects the auth type: API key, bearer token, basic auth, OAuth, or
+   custom header if supported by the spec.
+4. User pastes the key, uploads the provider token file, or completes the
+   provider auth flow.
+5. Backend validates the credential with a safe test request when possible.
+6. Backend stores the secret encrypted and returns only non-secret metadata to
+   the client.
+7. User grants a specific agent permission to use that credential.
+8. Runtime uses the credential only for approved tools and approved operations.
+
+Credential metadata shown in UI:
+
+- Provider name
+- Credential label
+- Credential type
+- Last four characters, when safe
+- Connected user or account, when available
+- Scopes or permissions
+- Last used date
+- Status: active, disabled, expired, revoked, or needs attention
+
+Credential controls:
+
+- Test connection
+- Rename
+- Rotate key
+- Disable
+- Delete
+- View usage history
+- Set per-agent usage limits
+- Revoke an agent's access
+
+Runtime rules:
+
+- Never put raw keys in prompts, tool descriptions, logs, or client responses.
+- Never copy keys when sharing or forking an agent.
+- Use the running user's key, not the agent creator's key, unless the creator is
+  the current user and has granted that agent access.
+- Confirm before using a key for high-cost, write, publish, purchase, message,
+  or delete operations.
+- Log which credential reference was used, but not the credential value.
+- Allow users to revoke a credential globally or revoke one agent's grant.
 
 
 ## Agent Runtime Flow
@@ -640,6 +761,7 @@ The first version should support:
 - Memory block for vocabulary and preferences
 - Basic database permission block for flashcards and lesson progress
 - OpenAPI import with operation selection
+- User API key connection and encrypted credential storage
 - Private agents and link sharing
 - Forking shared agents
 - Agent runner with chat and image input
@@ -661,6 +783,8 @@ Defer until later:
 - Sharing should copy agent structure, not private data.
 - OpenAPI tools should be selected operation-by-operation.
 - Credentials should stay server-side.
+- User-owned API keys should power shared agents without exposing or copying the
+  keys.
 - Users should be able to test an agent while building it.
 - Agent versions should make sharing and forking stable.
 - The UI should show what an agent can do at a glance.
