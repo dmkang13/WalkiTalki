@@ -1,1048 +1,499 @@
-# WalkiTalki Agent Infrastructure Architecture
+# WalkiTalki Agent Platform Architecture
 
 ## Table of Contents
 
-- [Goal](#goal)
-- [Core Concepts](#core-concepts)
-- [React App UX](#react-app-ux)
-- [Agent Tool Blocks and UX Ideas](#agent-tool-blocks-and-ux-ideas)
-  - [1. LLM Connector](#1-llm-connector)
-  - [2. Instructions](#2-instructions)
-  - [3. Skills](#3-skills)
-  - [4. Camera Access](#4-camera-access)
-  - [5. Microphone and Audio Access (Deferred)](#5-microphone-and-audio-access-deferred)
-  - [6. Memory](#6-memory)
-  - [7. Vector Stores](#7-vector-stores)
-  - [8. Database Access](#8-database-access)
-  - [9. OpenAPI API Tools](#9-openapi-api-tools)
-  - [10. User API Key and Token Connections](#10-user-api-key-and-token-connections)
-  - [11. Scripts](#11-scripts)
-  - [12. Database Schemas](#12-database-schemas)
-  - [13. Sharing and Permission Policy](#13-sharing-and-permission-policy)
-  - [14. Evaluation and Safety Rules](#14-evaluation-and-safety-rules)
-- [Backend Architecture](#backend-architecture)
-- [OpenAI Runtime vs WalkiTalki Platform](#openai-runtime-vs-walkitalki-platform)
-- [Database Design](#database-design)
-- [OpenAPI Handling](#openapi-handling)
-- [User API Key Handling](#user-api-key-handling)
-- [Agent Session Flow](#agent-session-flow)
-- [MVP Scope](#mvp-scope)
-- [Design Principles](#design-principles)
-- [Open Questions](#open-questions)
-
-## Goal
-
-Create a React app where users can assemble, edit, access, and share agents.
-An agent is a connector to an LLM plus a configurable set of tools, skills,
-permissions, memory, data access, API actions, and scripts.
-
-The first design target is not maximum agent power. It is a clear building
-experience where users understand what an agent can do, why it can do it, and
-how to safely share or remix it.
-
-
-## Core Concepts
-
-### Agent
-
-An agent is a saved configuration that includes:
-
-- LLM provider and model settings
-- System instructions and behavior style
-- Skills
-- Tool permissions
-- OpenAPI-backed API tools
-- Memory configuration
-- Vector store configuration
-- Database access configuration
-- Script or workflow access
-- Runtime permissions such as camera
-- Sharing permissions
-- Version history
-
-### Agent Tool
-
-An agent tool is a building block the user can add, remove, configure, test,
-and share. Tools should be interchangeable, but each tool needs its own edit
-panel because camera access, memory, database access, and API access all have
-different risks and configuration needs.
-
-### Skill
-
-A skill is a reusable capability package. It may contain instructions,
-examples, schemas, UI hints, tool requirements, evaluation rules, or scripts.
-The WalkiTalki database should store skill ids so agents can reference skills
-without duplicating the full skill definition each time.
-
-### OpenAPI Tool
-
-An OpenAPI tool is created by importing or linking an OpenAPI spec. The backend
-validates the spec, extracts supported operations, stores operation metadata,
-and exposes selected operations to the agent as callable tools. API credentials
-must stay server-side.
-
-
-## React App UX
-
-### Primary Views
-
-- Agent Library: list of the user's agents, shared agents, drafts, favorites,
-  and recently used agents.
-- Agent Builder: main workspace for assembling an agent from blocks.
-- Agent Detail: public or private profile page for one agent.
-- Agent Runner: chat, camera, or task interface for using an agent.
-- Shared Agent Gallery: browsable list of community or team agents.
-- Version History: compare, restore, fork, or publish prior agent versions.
-
-### Agent Builder Layout
-
-The builder should have four major areas:
-
-- Block Tray: available tools, skills, models, memories, vector stores, APIs, and
-  data sources.
-- Agent Canvas: current agent assembled as editable blocks.
-- Inspector Panel: settings for the selected block.
-- Test Console: quick place to run the agent and see what tools it tries to use.
+- [Purpose](#purpose)
+- [Product Thesis](#product-thesis)
+- [Platform Boundary](#platform-boundary)
+- [What an Agent Spec Is](#what-an-agent-spec-is)
+- [Core Product Surfaces](#core-product-surfaces)
+- [Capability Blocks](#capability-blocks)
+- [User-Owned Compute](#user-owned-compute)
+- [Agent Sessions](#agent-sessions)
+- [Sharing Model](#sharing-model)
+- [Data and Knowledge Model](#data-and-knowledge-model)
+- [Trust and Safety](#trust-and-safety)
+- [Platform Possibilities](#platform-possibilities)
+- [What This Document Avoids](#what-this-document-avoids)
+- [Follow-On Specs](#follow-on-specs)
+
+## Purpose
+
+WalkiTalki is a platform for creating, running, and sharing AI agent specs.
+
+The platform should make it easy for a user to define an agent, connect their
+own OpenAI API key, grant the agent access to selected WalkiTalki resources, and
+share or fork that agent with other users.
+
+This document describes the shape of the platform and the possibilities it could
+support. It intentionally avoids table schemas, endpoint definitions, and
+implementation-level detail. Those should live in follow-on technical specs.
+
+## Product Thesis
+
+The product is not "agent infrastructure." The product is a place where normal
+users can create useful AI assistants without understanding agent
+infrastructure.
+
+For WalkiTalki specifically, the first valuable category is language-learning
+agents:
+
+- Photo vocabulary tutors
+- Flashcard generators
+- Writing coaches
+- Reading companions
+- Lesson planners
+- Quiz creators
+- Personal recall tutors
+
+The long-term platform can support many agent categories, but the first product
+experience should prove that a user can build a constrained photo-language
+agent, publish it privately, share it by direct link, run it on a picture, and
+chat about what the model sees before adding flashcards, memory, forking, or
+marketplace mechanics.
 
-The canvas should feel more like putting together a kit than writing code.
-Each block needs a plain-language summary of what it allows the agent to do.
+## Platform Boundary
 
-### Builder Flow
+WalkiTalki and OpenAI should have a clean separation of responsibilities.
+
+WalkiTalki is the platform layer. It owns:
 
-1. User creates a new agent from blank state or template.
-2. User chooses a model and gives the agent a name.
-3. User adds skills and tools from the block tray.
-4. User configures each block in the inspector panel.
-5. User tests the agent in the test console.
-6. User saves a draft, publishes privately, or shares.
+- User accounts in the future platform, but not in the MVP
+- Agent specs
+- Agent names, descriptions, and share links
+- Skill IDs and curated capability definitions
+- WalkiTalki data such as flashcards, uploaded documents, lessons, memories, and
+  progress
+- Vector store ownership and metadata
+- User-owned OpenAI API key references
+- Session grants for WalkiTalki resources
+- Sharing, forking, and visibility rules
+- Usage visibility and platform audit history
 
-### Access and Sharing UI
+OpenAI is the runtime and compute layer. It handles:
 
-Agents should be accessible from cards in the library. Each card should show:
+- LLM reasoning
+- Chatbot interaction
+- Image understanding
+- Tool selection from the tools included in the selected agent session
+- Structured outputs when needed
+- Retrieval or file search if WalkiTalki chooses to use OpenAI-hosted vector
+  stores
 
-- Agent name
-- Short description
-- Tool icons
-- Visibility state
-- Last edited date
-- Run button
-- Share button
-- More menu for duplicate, fork, archive, or version history
+WalkiTalki should not try to become a full agent runtime. It should create clean
+agent specs and expose clean resource interfaces. OpenAI should do the heavy
+model work.
 
-Sharing should support:
+## What an Agent Spec Is
 
-- Private
-- Shared by link
-- Shared with specific users
-- Shared with a group or classroom
-- Published to gallery
-- Forkable template
+An agent spec is the shareable definition of an agent.
 
-When sharing an agent, the UI must clearly separate:
+At a product level, an agent spec includes:
 
-- Agent definition: safe to share
-- User credentials: never shared
-- Private memory: not shared by default
-- User data sources: not shared unless explicitly allowed
-- Scripts and API actions: shared only as references plus required permissions
+- Name
+- Description
+- Instructions
+- Intended user goal
+- Enabled capability blocks
+- Required WalkiTalki resources
+- Required user-owned OpenAI API key
+- Sharing settings
+- Version identity
 
+An agent spec should be shareable without sharing private user data.
 
-## Agent Tool Blocks and UX Ideas
+When a user forks a shared agent, they copy the reusable spec, not the creator's
+API key, private memory, private flashcards, private documents, or private vector
+stores.
 
-### 1. LLM Connector
+## Core Product Surfaces
 
-What it does:
-- Chooses the model provider, model, temperature, response style, and token
-  limits.
+### Agent Library
 
-Builder UX:
-- Model picker with recommended defaults.
-- Simple mode for basic users.
-- Advanced mode for temperature, max output, and reasoning controls.
+The library is where users access agents.
 
-Runner UI:
-- Shows which model powers the agent.
-- Optionally lets the user switch between fast, balanced, and careful modes.
+It should support:
 
-### 2. Instructions
+- Agents I created
+- Agents shared with me
+- Agents I forked
+- Recently used agents
+- A simple create-agent action
 
-What it does:
-- Defines the agent's role, tone, goals, boundaries, and default behavior.
-
-Builder UX:
-- Guided form with fields for purpose, audience, tone, and constraints.
-- Prompt preview for advanced users.
-- Template starters such as tutor, coach, researcher, planner, and reviewer.
-
-Runner UI:
-- Agent profile summary explains what the agent is meant to do.
-
-### 3. Skills
-
-What it does:
-- Adds reusable capability packages by skill id.
-
-Builder UX:
-- Skill marketplace or library.
-- Skill cards with category, required tools, author, rating, and compatibility.
-- Drag skills into the agent canvas.
-- Inspector lets users enable, disable, reorder, or configure skill preferences.
-
-Runner UI:
-- Skill badges show what capabilities are active.
-- Agent can cite which skill it used when useful.
-
-Backend note:
-- Store skill ids on the agent version.
-- Resolve skill details at runtime from the skill registry.
-
-### 4. Camera Access
-
-What it does:
-- Allows an agent to request or process images from the user's camera.
-
-Builder UX:
-- Camera permission block with allowed modes:
-  - Manual photo only
-  - Upload image
-  - Live camera preview
-  - Periodic capture, if later supported
-- Inspector explains when the agent may use the camera.
-
-Runner UI:
-- Clear camera button.
-- Preview before sending image to the agent.
-- Per-use permission confirmation.
-
-WalkiTalki use:
-- Photo-based language lessons from real-world objects and scenes.
-
-### 5. Microphone and Audio Access (Deferred)
-
-What it does:
-- Would allow recording, transcription, pronunciation checks, or live listening.
-
-Current decision:
-- Hold this back for now.
-- Do not include microphone permissions, live listening, audio upload, voice
-  chat, pronunciation scoring, or audio transcription in the MVP builder.
-- Keep the architecture open for a future audio block, but avoid designing the
-  first agent experience around always-listening behavior.
-
-### 6. Memory
-
-What it does:
-- Lets an agent remember user preferences, past sessions, learned words, goals,
-  mistakes, and progress so future interactions feel personalized.
-
-Builder UX:
-- Memory block with toggles:
-  - Remember preferences
-  - Remember vocabulary
-  - Remember writing feedback
-  - Remember conversation history
-  - Remember learning level
-- Inspector shows memory scope and retention rules.
-
-Runner UI:
-- "What this agent remembers" panel.
-- Delete or edit memory entries.
-- Temporary session mode.
-
-Backend note:
-- Separate private user memory from shared agent definition.
-- Agent sharing should not copy personal memory unless the user exports it.
-- Memory should stay user-specific, editable, and private by default.
-- Memory is not the source of truth for shared product objects such as agents,
-  skill ids, flashcards, documents, stories, comments, or progress records.
-
-### 7. Vector Stores
-
-What it does:
-- Gives an agent semantic recall over memory-like information using embeddings
-  and similarity search. Use this for fuzzy retrieval over prior experiences,
-  notes, writing mistakes, conversation themes, and other chunk-based context.
-
-Builder UX:
-- Vector store block with selectable stores:
-  - Agent-specific session recall
-- Inspector controls scope, retention, retrieval count, and whether retrieved
-  items can be shown to the user.
-- Builder should label vector stores as "fuzzy recall" rather than structured
-  records.
-
-Runner UI:
-- Controls to remove a retrieved memory item or exclude it from future retrieval.
-- Clear indication when an answer used personal recall.
-
-Backend note:
-- Store vector store ids, ownership, sharing policy, and source metadata in
-  WalkiTalki.
-- Store embeddings and chunks in the chosen vector backend.
-- Treat vector results as context, not as durable source-of-truth product
-  records.
-- If a document or flashcard is indexed for semantic search, the database remains
-  the canonical record and the vector store holds retrievable chunks or summaries.
-
-### 8. Database Access
-
-What it does:
-- Allows an agent to read or write approved structured WalkiTalki data. Use this
-  for canonical product records that need to be queried, shared, versioned,
-  audited, or reused outside the current chat, including structured knowledge
-  sources such as uploaded documents, vocabulary lists, lesson content, and
-  flashcards.
-
-Builder UX:
-- Database block with selectable tables or resource types.
-- Knowledge source picker for uploading files or selecting existing collections.
-- Indexing status and source preview for uploaded or imported content.
-- Scope selector for private, shared, or public database-backed knowledge.
-- Option to create a vector index for semantic lookup while keeping the database
-  record canonical.
-- Plain-language permissions:
-  - Read vocabulary
-  - Create flashcards
-  - Read lesson progress
-  - Write lesson results
-  - Read shared stories
-  - Comment on shared work
-  - Read uploaded documents
-  - Read document chunks or flashcard records
-
-Runner UI:
-- Agent activity log shows when data is read or written.
-- Confirmation for destructive or public writes.
-- Source citations when the agent answers from database-backed knowledge.
-- Source viewer for inspecting documents, chunks, flashcards, or other retrieved
-  records.
-
-Backend note:
-- Do not expose direct database credentials to agents or browsers.
-- Use scoped server endpoints and policy checks.
-
-### 9. OpenAPI API Tools
-
-What it does:
-- Turns external API operations into agent-callable tools.
-
-Builder UX:
-- Import OpenAPI spec by URL or file upload.
-- Validate the spec and show detected operations.
-- User selects which operations the agent can use.
-- Inspector allows operation naming, descriptions, parameter defaults, and auth
-  connection selection.
-- Test call panel for each selected operation.
-
-Runner UI:
-- Tool-use timeline shows API calls before and after execution.
-- Sensitive calls require confirmation.
-- Failed API calls should show a readable reason and retry option.
-
-Backend note:
-- Store the original OpenAPI spec plus a normalized operation registry.
-- Resolve auth and execute API calls on the backend.
-- Use operation ids, HTTP methods, paths, parameters, request schemas, response
-  schemas, and security schemes from the spec.
-- Validate inputs against the OpenAPI schema before execution.
-- Return structured results to the OpenAI runtime rather than raw unbounded
-  responses.
-
-### 10. User API Key and Token Connections
-
-What it does:
-- Lets users connect their own API keys, bearer tokens, or provider credentials
-  so agents can use the user's quota, account, and permissions.
-
-Builder UX:
-- Credential block or connection step attached to OpenAPI tools and LLM
-  providers.
-- User can paste an API key, upload a token file if the provider requires it,
-  or complete an OAuth-style connection flow.
-- UI shows the credential label, provider, allowed scopes, last used date, and
-  whether the key is active.
-- After saving, the secret is never shown again. The user can only rename,
-  rotate, test, disable, or delete it.
-- Builder should clearly mark tools that require the user to bring their own
-  key before the agent can run.
-
-Runner UI:
-- If a shared agent requires a key, prompt the current user to connect their own
-  credential before running that tool.
-- Show which connected account or token will be charged before high-cost calls.
-- Let users set per-agent usage limits where possible, such as daily call caps
-  or maximum spend warnings.
-
-Sharing behavior:
-- A creator's API keys are never shared with other users.
-- Shared agents should include a list of required credential types, not the
-  actual credentials.
-- Forked agents inherit credential requirements but not credential values.
-- Each user decides which of their own saved keys can be used by the agent.
-
-Backend note:
-- Store encrypted credentials in a secrets store or encrypted credential table.
-- Store only a reference to the secret on agent connections.
-- Track key owner, provider, scopes, status, and last-used metadata.
-- Do not pass raw keys to the OpenAI runtime or React client.
-- All API calls using user keys must execute server-side through the tool
-  runtime.
-
-### 11. Scripts
-
-What it does:
-- Allows agents to run approved scripts or workflows.
-
-Builder UX:
-- Script block with approved script library.
-- Show inputs, outputs, required permissions, and last updated date.
-- No arbitrary user code in the MVP.
-
-Runner UI:
-- Confirmation before running scripts with side effects.
-- Display script output in a readable panel.
-
-Backend note:
-- Scripts should run in a sandboxed job environment.
-- Store script ids and version ids on agent versions.
-
-### 12. Database Schemas
-
-What it does:
-- Defines structured data the agent can create, update, or query.
-
-Builder UX:
-- Schema block with visual schema editor.
-- Templates for flashcards, lessons, stories, comments, vocabulary items, and
-  user progress.
-- Field-level permission controls.
-
-Runner UI:
-- Generated records appear as structured cards, not just chat text.
-- User can approve records before saving.
-
-Backend note:
-- Store schema ids and version ids.
-- Validate generated records against schemas before writes.
-
-### 13. Sharing and Permission Policy
-
-What it does:
-- Controls who can view, use, fork, edit, or publish an agent.
-
-Builder UX:
-- Share block or publish panel.
-- Permission presets:
-  - Private draft
-  - Personal agent
-  - Friend shared
-  - Classroom shared
-  - Public template
-
-Runner UI:
-- Clear indicator when using someone else's agent.
-- Fork button creates a personal copy without copying private credentials.
-
-### 14. Evaluation and Safety Rules
-
-What it does:
-- Adds tests, guardrails, and expected behavior checks.
-
-Builder UX:
-- Evaluation block with sample tasks and expected outcomes.
-- Tool permission checks.
-- "Run test suite" button before publishing.
-
-Runner UI:
-- Lightweight warning when the agent cannot perform a requested action because
-  a permission or tool is missing.
-
-
-## Backend Architecture
-
-### Main Backend Responsibilities
-
-- Store users, agent ids, skill ids, vector store ids, tools, agent versions, and
-  sharing permissions.
-- Validate and store OpenAPI specs.
-- Convert selected OpenAPI operations into callable agent tools.
-- Store agent versions so shared agents are stable.
-- Resolve selected agent specs into OpenAI-compatible runtime configurations.
-- Create agent sessions with scoped grants for WalkiTalki-hosted resources.
-- Expose session-scoped DB, vector store, OpenAPI, and credential-backed tool
-  interfaces for OpenAI to use during the chat.
-- Store encrypted references to user API keys and provider tokens.
-- Keep credentials, private memory, vector store access, and database access off
-  the client.
-- Log agent sessions, resource access, approvals, and errors.
-
-### Suggested Services
-
-- React client: builder, gallery, runner, and sharing UI.
-- App API: authentication, agent CRUD, sharing, comments, gallery, credential
-  connections, and sessions.
-- Agent session service: resolves an agent version into an OpenAI runtime config
-  and creates scoped grants for the selected user session.
-- Tool registry service: skills, scripts, vector store tools, OpenAPI
-  operations, and database tools.
-- OpenAPI ingestion service: validates specs and creates normalized tool records.
-- Credential service: encrypts, stores, rotates, disables, and audits user API
-  keys and provider tokens.
-- Memory service: private user memory and agent-scoped memory.
-- Vector store service: manages semantic retrieval stores, chunk metadata,
-  embedding jobs, and access policies.
-- Resource gateway: exposes session-scoped WalkiTalki DB, vector, OpenAPI, and
-  credential-backed interfaces to the OpenAI runtime.
-- Job service: sandboxed scripts, long-running imports, and evaluations.
-
-
-## OpenAI Runtime vs WalkiTalki Platform
-
-WalkiTalki is the platform for creating, storing, versioning, and sharing agent
-specs. The OpenAI API is the runtime that does the LLM compute, spins up the
-chatbot experience from the selected spec, and calls the tools exposed for that
-agent session.
-
-### OpenAI API Responsibilities
-
-OpenAI should handle:
-
-- Running the selected agent spec as a chatbot experience.
-- Model inference for chat, image understanding, planning, and response
-  generation.
-- Tool-call selection from the tool schemas WalkiTalki includes in the selected
-  agent spec.
-- Structured output generation when WalkiTalki needs model output to match a
-  schema.
-- Calls to WalkiTalki-hosted DB, vector store, OpenAPI, and credential-backed
-  resource interfaces when those tools are included in the agent session.
-- Embeddings, vector store retrieval, or classification if WalkiTalki chooses to
-  use OpenAI for semantic recall, search, or evaluation.
-
-OpenAI should not be the source of truth for:
-
-- WalkiTalki user accounts
-- Agent ids
-- Skill ids
-- Agent sharing permissions
-- Agent version history
-- API credentials
-- Vector store ownership and permissions
-- Database records
-- Flashcards, stories, comments, lessons, or progress
-- Public gallery listings
-- Audit logs
-
-### WalkiTalki Platform Responsibilities
-
-WalkiTalki should handle:
-
-- User identity and access control.
-- Agent ids, names, owners, visibility, and current versions.
-- Agent version records, including model config, instructions, enabled tools,
-  skill ids, OpenAPI operation ids, and permission policies.
-- Skill ids and the skill registry because WalkiTalki is the platform where
-  users discover, share, fork, and reuse agents.
-- Tool definitions and tool configuration.
-- Imported OpenAPI specs and normalized OpenAPI operation records.
-- User API key references and credential grants.
-- Memory records and user preference summaries.
-- Vector store ids, ownership, source metadata, and access policies.
-- Durable product data such as uploaded documents, flashcards, lessons, stories,
-  comments, and learning progress.
-- Sharing, forking, gallery, classroom, and collaboration records.
-- Agent sessions, session grants, resource access logs, and audit history.
-
-### Session Boundary
-
-1. User opens an agent.
-2. WalkiTalki loads the selected agent version and resolves its skill ids, tool
-   definitions, DB resources, vector stores, OpenAPI operations, and credential
-   requirements.
-3. WalkiTalki creates an agent session with scoped grants for the current user.
-4. WalkiTalki sends OpenAI the agent instructions, model settings, and tool
-   schemas for that session.
-5. OpenAI runs the chatbot experience and calls the tools included in the
-   session schema.
-6. WalkiTalki-hosted resource interfaces honor calls only when they include a
-   valid session grant for the requested DB resource, vector store, credential,
-   or OpenAPI operation.
-7. WalkiTalki stores durable outcomes in its own database and logs resource
-   access for the session.
-
-### Skill ID Example
-
-If a shared "Photo Vocabulary Tutor" agent uses these skills:
-
-- `skill.photo_scene_vocabulary`
-- `skill.beginner_korean_examples`
-- `skill.flashcard_generation`
-
-Those skill ids live in WalkiTalki. When another user forks the agent,
-WalkiTalki copies references to the same skill ids into a new agent version.
-OpenAI receives the resolved instructions and tool schemas for the agent session,
-but OpenAI does not manage the skill registry or decide who can share, fork,
-edit, or publish those skills.
-
-### Vector Store Example
-
-If a "Writing Coach" agent uses a personal recall vector store, WalkiTalki owns
-the vector store id, session grant, retention policy, and source metadata. The
-vector backend may store embeddings and return similar chunks, but the vector
-store is exposed to OpenAI only through the selected session's permitted tool
-schema. The canonical essay, comment, flashcard, or uploaded document still
-lives in the WalkiTalki database.
-
-
-## Database Design
-
-### Core Tables
-
-`users`
-- id
-- display_name
-- email
-- created_at
-
-`agents`
-- id
-- owner_user_id
-- current_version_id
-- name
-- slug
-- summary
-- visibility
-- created_at
-- updated_at
-
-`agent_versions`
-- id
-- agent_id
-- version_number
-- model_config_json
-- instructions
-- tool_config_json
-- created_by_user_id
-- created_at
-- publish_state
-
-`skills`
-- id
-- name
-- description
-- category
-- definition_json
-- required_tool_types_json
-- author_user_id
-- visibility
-- created_at
-
-`agent_skills`
-- id
-- agent_version_id
-- skill_id
-- config_json
-- position
-- enabled
-
-`tool_definitions`
-- id
-- tool_type
-- name
-- description
-- definition_json
-- created_by_user_id
-- visibility
-
-`agent_tools`
-- id
-- agent_version_id
-- tool_definition_id
-- config_json
-- permissions_json
-- enabled
-
-### OpenAPI Tables
-
-`openapi_specs`
-- id
-- owner_user_id
-- name
-- source_type
-- source_url
-- raw_spec_json
-- parsed_spec_json
-- validation_status
-- validation_errors_json
-- created_at
-- updated_at
-
-`openapi_operations`
-- id
-- openapi_spec_id
-- operation_id
-- method
-- path
-- summary
-- description
-- parameters_schema_json
-- request_body_schema_json
-- response_schema_json
-- security_requirements_json
-- normalized_tool_name
-
-`api_connections`
-- id
-- owner_user_id
-- openapi_spec_id
-- auth_type
-- provider_name
-- credential_kind
-- key_label
-- secret_last_four
-- encrypted_credentials_ref
-- scopes_json
-- status
-- display_name
-- last_used_at
-- created_at
-- updated_at
-
-`credential_grants`
-- id
-- owner_user_id
-- agent_id
-- api_connection_id
-- allowed_tool_types_json
-- allowed_operation_ids_json
-- usage_limits_json
-- status
-- created_at
-- updated_at
-
-`agent_api_operations`
-- id
-- agent_version_id
-- openapi_operation_id
-- api_connection_id
-- alias
-- enabled
-- requires_confirmation
-- parameter_defaults_json
-
-### Memory, Vector, and Data Access Tables
-
-`memories`
-- id
-- user_id
-- agent_id
-- memory_type
-- content_json
-- visibility
-- created_at
-- updated_at
-
-`vector_stores`
-- id
-- owner_user_id
-- name
-- store_type
-- backend_provider
-- backend_store_ref
-- scope
-- retention_policy_json
-- visibility
-- created_at
-- updated_at
-
-`vector_store_items`
-- id
-- vector_store_id
-- source_type
-- source_id
-- chunk_ref
-- metadata_json
-- visibility
-- created_at
-- updated_at
-
-`agent_vector_stores`
-- id
-- agent_version_id
-- vector_store_id
-- retrieval_config_json
-- permissions_json
-- enabled
-
-`db_schemas`
-- id
-- owner_user_id
-- name
-- schema_json
-- version
-- visibility
-
-`agent_db_permissions`
-- id
-- agent_version_id
-- resource_type
-- action
-- scope
-- policy_json
-
-`uploaded_documents`
-- id
-- owner_user_id
-- title
-- file_type
-- storage_ref
-- visibility
-- created_at
-- updated_at
-
-`document_chunks`
-- id
-- document_id
-- chunk_index
-- content_ref
-- metadata_json
-- created_at
-
-`flashcards`
-- id
-- owner_user_id
-- front
-- back
-- language
-- tags_json
-- source_type
-- source_id
-- created_at
-- updated_at
-
-### Sharing Tables
-
-`agent_shares`
-- id
-- agent_id
-- shared_with_user_id
-- shared_with_group_id
-- permission
-- created_by_user_id
-- created_at
-
-`agent_forks`
-- id
-- source_agent_id
-- source_version_id
-- forked_agent_id
-- forked_by_user_id
-- created_at
-
-### Session Tables
-
-`agent_sessions`
-- id
-- agent_id
-- agent_version_id
-- user_id
-- openai_session_ref
-- status
-- expires_at
-- started_at
-- completed_at
-
-`agent_session_grants`
-- id
-- agent_session_id
-- grant_type
-- resource_type
-- resource_id
-- allowed_actions_json
-- expires_at
-- status
-- created_at
-
-`resource_access_logs`
-- id
-- agent_session_id
-- grant_id
-- resource_type
-- resource_id
-- action
-- metadata_json
-- status
-- created_at
-
-`audit_logs`
-- id
-- actor_user_id
-- action
-- resource_type
-- resource_id
-- metadata_json
-- created_at
-
-
-## OpenAPI Handling
-
-The OpenAPI flow should be explicit at build time and session-scoped at run
-time:
-
-1. User imports a spec by URL or upload.
-2. WalkiTalki validates that it is a supported OpenAPI version.
-3. WalkiTalki parses paths, operations, schemas, parameters, request bodies,
-   response bodies, and security schemes.
-4. WalkiTalki creates an operation list for the builder UI.
-5. User selects allowed operations.
-6. User connects auth credentials through a server-side connection flow or
-   chooses one of their saved API key connections.
-7. Agent version stores references to selected operation ids.
-8. When a user starts the agent, WalkiTalki creates a session grant for the
-   selected OpenAPI operations and credential references.
-9. WalkiTalki includes those operation schemas in the OpenAI agent session.
-10. OpenAI runs the agent and calls the permitted operation tools when useful.
-11. WalkiTalki's resource gateway honors those calls only when the session grant
-    allows the requested operation and credential.
-
-Important constraints:
-
-- Never send API keys to the React client.
-- Never let the OpenAI runtime call arbitrary URLs from a spec.
-- Only selected operations become tools.
-- Require confirmation for writes, purchases, messages, deletes, or public posts.
-- Keep raw API responses size-limited and schema-shaped before returning them to
-  the OpenAI runtime.
-- Shared agents must ask each user to connect their own key when an operation
-  requires user-owned credentials.
-
-
-## User API Key Handling
-
-Users should be able to bring their own API keys and tokens, but the system
-should treat those credentials as private user-owned resources.
-
-Credential setup flow:
-
-1. User opens a credential connection screen from the agent builder, account
-   settings, or an API tool block.
-2. User chooses a provider or imported OpenAPI spec.
-3. User selects the auth type: API key, bearer token, basic auth, OAuth, or
-   custom header if supported by the spec.
-4. User pastes the key, uploads the provider token file, or completes the
-   provider auth flow.
-5. Backend validates the credential with a safe test request when possible.
-6. Backend stores the secret encrypted and returns only non-secret metadata to
-   the client.
-7. User grants a specific agent session permission to use that credential.
-8. The OpenAI runtime can use the credential only through tools included in that
-   session's schema.
-
-Credential metadata shown in UI:
-
-- Provider name
-- Credential label
-- Credential type
-- Last four characters, when safe
-- Connected user or account, when available
-- Scopes or permissions
-- Last used date
-- Status: active, disabled, expired, revoked, or needs attention
-
-Credential controls:
-
-- Test connection
-- Rename
-- Rotate key
-- Disable
-- Delete
-- View usage history
-- Set per-agent usage limits
-- Revoke an agent session's access
-
-Runtime rules:
-
-- Never put raw keys in prompts, tool descriptions, logs, or client responses.
-- Never copy keys when sharing or forking an agent.
-- Use the running user's key, not the agent creator's key.
-- Confirm before using a key for high-cost, write, publish, purchase, message,
-  or delete operations.
-- Log which credential reference was used, but not the credential value.
-- Allow users to revoke a credential globally or revoke the current session's
-  grant.
-
-
-## Agent Session Flow
-
-1. User opens an agent.
-2. WalkiTalki loads the current agent version.
-3. WalkiTalki resolves skills, tool definitions, memory scope, vector stores,
-   database resources, OpenAPI operations, and credential requirements.
-4. User grants session access to the needed WalkiTalki resources.
-5. WalkiTalki creates an `agent_session` and `agent_session_grants`.
-6. WalkiTalki sends OpenAI the selected agent spec, model settings, instructions,
-   and tool schemas for that session.
-7. OpenAI runs the chatbot experience.
-8. OpenAI calls the available session tools when needed.
-9. WalkiTalki resource interfaces serve DB, vector, OpenAPI, or credential-backed
-   requests that match the session grants.
-10. WalkiTalki records durable DB changes, memory updates, vector store items, and
-    resource access logs.
-
-
-## MVP Scope
-
-The first version should support:
-
-- Agent library
-- Agent builder with block tray, canvas, inspector, and test console
-- LLM connector block
-- Instructions block
-- Skills block using stored skill ids
-- Camera block for photo-based lessons
-- Memory block for vocabulary and preferences
-- Vector store block for memory-like semantic recall
-- Basic database session grants for flashcards and lesson progress
-- OpenAPI import with operation selection
-- User API key connection and encrypted credential storage
-- Private agents and link sharing
-- Forking shared agents
-- Agent runner with chat and image input
-
-Defer until later:
-
-- Public marketplace ranking
-- Arbitrary user scripts
-- Microphone and audio access, including recording, transcription,
-  pronunciation scoring, and live listening
-- Complex group administration
-- Paid agent publishing
-- Fully visual schema designer
-
-
-## Design Principles
-
-- Blocks should be understandable before they are powerful.
-- Every permission should have a visible reason.
-- Sharing should copy agent structure, not private data.
-- Vector stores should provide recall context, while the database remains the
-  source of truth for structured WalkiTalki records.
-- OpenAPI tools should be selected operation-by-operation.
-- Credentials should stay server-side.
-- User-owned API keys should power shared agents without exposing or copying the
-  keys.
-- Users should be able to test an agent while building it.
-- Agent versions should make sharing and forking stable.
-- The UI should show what an agent can do at a glance.
-
-
-## Open Questions
-
-- Should WalkiTalki agents be mostly personal tools, shared classroom tools, or
-  public community templates?
-- Should skills be created only by WalkiTalki at first, or can users create
-  skills in the MVP?
-- Should agent blocks be arranged as a canvas, a vertical checklist, or both?
-- How much of the agent's prompt should be visible to non-technical users?
-- Should shared agents show their full configuration before a user runs them?
-- Should API-connected agents require publisher review before public sharing?
+The library should not feel like a marketplace in the MVP. A marketplace invites
+moderation, ranking, search, abuse, creator incentives, and support burden too
+early.
+
+### Agent Builder
+
+The builder is where users create and edit an agent spec.
+
+The builder should start as a boring, reliable form. Avoid a canvas until there
+is proof that users need visual composition.
+
+For the MVP, the builder can still show a set of disabled future capability
+icons. These icons help users understand that agents are made of interchangeable
+building blocks, but they should not add real runtime capability until the core
+photo-language loop is proven.
+
+The builder should help users answer:
+
+- What is this agent for?
+- What should it do?
+- What should it not do?
+- What WalkiTalki resources can it use?
+- What should happen when it creates or changes user data?
+
+### Agent Runner
+
+The runner is the chat experience for using an agent.
+
+It should support:
+
+- Text chat
+- Image input for photo-based lessons
+- Clear indication of which agent is running
+- Clear indication of which resources the session can access
+- Approval moments for writes or high-impact actions
+
+### Share and Fork
+
+MVP sharing should be simple:
+
+- Share by link
+- Recipient can view the spec
+- Recipient must use their own OpenAI API key
+- Recipient can start a new session with the shared agent
+
+Forking is a future platform behavior. It should not be required to prove that a
+shared photo-language agent can travel by link and run for someone else.
+
+## Capability Blocks
+
+Capability blocks are the user-facing building blocks of an agent spec. They
+should be understandable before they are powerful.
+
+### Instructions
+
+Defines the agent's goal, tone, behavior, and boundaries.
+
+This is the most important block. Most early value will come from better
+instructions and better templates, not more tools.
+
+### Skills
+
+Skills are reusable WalkiTalki-defined capability packages.
+
+Early skills should be curated by WalkiTalki, not user-created. Skill IDs matter
+because WalkiTalki is the platform where agents are shared and forked.
+
+Examples:
+
+- Photo vocabulary tutor
+- Flashcard generator
+- Writing feedback coach
+- Reading comprehension helper
+
+### Image Input
+
+Allows an agent to work with photos or uploaded images.
+
+This is central to the WalkiTalki concept because it lets users turn real-world
+context into language practice.
+
+### Flashcard Access
+
+Allows an agent to read or create flashcards inside WalkiTalki.
+
+This is a strong future database-backed action because it turns an agent
+conversation into durable learning material. It is not required for the first
+MVP.
+
+### Uploaded Documents
+
+Allows an agent to use user-provided or shared documents as learning material.
+
+Documents should remain database-owned product records. If they are indexed for
+retrieval, the vector store should be treated as a search layer, not the source
+of truth.
+
+### Vector Recall
+
+Allows an agent to retrieve relevant prior context.
+
+Use vector stores for fuzzy recall:
+
+- Similar prior mistakes
+- Related past lessons
+- User notes
+- Chunks from uploaded documents
+- Memory-like snippets
+
+Vector recall is useful, but it should not become a substitute for structured
+product data.
+
+### Memory
+
+Allows an agent to remember lightweight personal preferences.
+
+Memory should be private, user-specific, editable, and limited. It should not be
+the primary place where WalkiTalki stores important product records.
+
+### External API Actions
+
+External API tools may eventually let users connect agents to third-party
+services.
+
+This is not an MVP capability. It creates security, support, validation,
+credential, and product-complexity problems before the photo lesson loop is
+proven.
+
+### Scripts and Workflows
+
+Scripts may eventually let agents trigger approved workflows.
+
+This should be delayed. Arbitrary scripts create a much bigger trust and safety
+surface than the platform needs at the beginning.
+
+### Audio and Microphone
+
+Audio may eventually support pronunciation, live listening, transcription, and
+conversation practice.
+
+This should stay deferred until the text, image, lesson, chat, and BYOK loops are
+working.
+
+## User-Owned Compute
+
+User-owned OpenAI API keys are central to the product strategy.
+
+WalkiTalki should not pay for general user experimentation. Users should bring
+their own OpenAI API key to run agents.
+
+The product implication is important:
+
+- WalkiTalki stores and shares agent specs.
+- Users pay for their own AI compute.
+- Shared agents never include the creator's API key.
+- A recipient must connect their own key before running a shared agent.
+- WalkiTalki should show enough usage visibility that users understand that
+  their key is being used.
+
+In the MVP, "bring your own key" should mean OpenAI API keys only. Do not support
+generic provider keys, arbitrary external API credentials, OAuth integrations, or
+third-party API marketplaces yet.
+
+The MVP should not include user-account infrastructure. In MVP discussions,
+"user" means the person operating the prototype, not a persisted platform object.
+
+## Agent Sessions
+
+An agent session is a temporary run of an agent spec for one user.
+
+Session grants should be the main permission model. Instead of building a huge
+permanent permission system, WalkiTalki should ask:
+
+- Which agent is this user running?
+- Which WalkiTalki resources does this session need?
+- Which resources did the user grant for this session?
+- What can the agent read?
+- What can the agent write?
+
+Examples:
+
+- A photo-language session can use the user's OpenAI API key and image input.
+- A future photo tutor session can read the user's flashcards and create new
+  flashcards after that capability exists.
+- A writing coach session can access a personal recall vector store.
+- A shared tutor session can use the recipient's OpenAI API key, not the
+  creator's key.
+
+Session grants keep sharing understandable. The shared spec is reusable, but the
+data access is personal to the current user's session.
+
+## Sharing Model
+
+Sharing is the platform's core unlock.
+
+The user should be able to:
+
+- Create an agent
+- Publish the agent spec
+- Copy a direct link to the agent spec
+- Let the recipient run it with their own key and resources
+
+Sharing should not include:
+
+- Creator API keys
+- Creator private memory
+- Creator private documents
+- Creator private flashcards
+- Creator private vector stores
+
+Future sharing modes may include:
+
+- Friend sharing
+- Classroom sharing
+- Team sharing
+- Public templates
+- Forkable templates
+- Curated marketplace
+- Paid templates
+
+Direct link sharing belongs in the MVP because it tests whether a created agent
+is useful to someone besides its creator. Forking, public discovery, ratings,
+profiles, and marketplace mechanics should wait.
+
+## Data and Knowledge Model
+
+WalkiTalki will likely use three kinds of data:
+
+### Structured Product Data
+
+This is canonical WalkiTalki data.
+
+Examples:
+
+- Agents
+- Skill IDs
+- Flashcards
+- Uploaded documents
+- Lesson results
+- Stories
+- Comments
+- User progress
+
+This data belongs in WalkiTalki's platform layer.
+
+### Vector Search Data
+
+This is retrieval-oriented data.
+
+Examples:
+
+- Chunks from uploaded documents
+- Similar writing mistakes
+- Prior lesson snippets
+- Personal recall context
+
+Vector data should support search and recall. It should not be treated as the
+source of truth for important product objects.
+
+### Lightweight Memory
+
+This is user preference and personalization data.
+
+Examples:
+
+- "The user prefers short explanations."
+- "The user is learning Korean."
+- "The user struggles with formal speech."
+- "The user likes examples before grammar explanations."
+
+Memory should make agents feel personal without turning into an invisible
+database.
+
+## Trust and Safety
+
+The platform has several trust problems that need to be designed early:
+
+- Users need to know when their OpenAI API key is being used.
+- Shared agents must not leak creator data.
+- Forked agents must not inherit private credentials.
+- Agents should ask before writing durable user data.
+- Users should be able to inspect what an agent can access before running it.
+- Users should be able to stop a session.
+- Users should be able to revoke resource access.
+
+Trust is more important than advanced capabilities. If users do not understand
+what an agent can access, they will not share or run agents confidently.
+
+## Platform Possibilities
+
+The platform could eventually support many directions. These are possibilities,
+not MVP commitments.
+
+### Language Learning
+
+- Photo vocabulary tutors
+- Flashcard generators
+- Writing coaches
+- Reading companions
+- Conversation simulators
+- Grammar explainers
+- Lesson planners
+- Quiz creators
+
+### Personal Productivity
+
+- Personal knowledge assistants
+- Document tutors
+- Planning agents
+- Research agents
+- Study coaches
+
+### Education and Classrooms
+
+- Teacher-created agents
+- Shared class document agents
+- Student-specific practice agents
+- Assignment feedback agents
+- Classroom flashcard decks
+
+### Community Templates
+
+- Public agent gallery
+- Forkable templates
+- Ratings and reviews
+- Creator profiles
+- Verified agents
+- Moderation workflows
+
+### Advanced Integrations
+
+- External API tools
+- OAuth-connected services
+- Approved workflow scripts
+- Multi-agent handoffs
+- Scheduled agents
+- Voice agents
+- Paid templates
+
+These are later-stage platform expansions. They should not distract from the
+first proof: users can build a constrained photo-language agent, publish it
+privately, share it by link, run it on a picture, and chat about what the model
+sees.
+
+## What This Document Avoids
+
+This document intentionally avoids:
+
+- Database table definitions
+- API endpoint specs
+- JSON schemas
+- Provider SDK details
+- UI component specs
+- Authentication implementation
+- Vector store implementation
+- OpenAPI ingestion details
+- Deployment details
+
+Those details should be written only after the MVP scope is locked.
+
+## Follow-On Specs
+
+The next specs should be narrow and technical:
+
+1. Photo Lesson Product Spec
+2. OpenAI BYOK Spec
+3. Photo Language Agent Builder Spec
+4. Direct Link Sharing Spec
+5. Builder Capability Icon Spec
+6. Photo Lesson Prompt Spec
+7. Image Input Flow Spec
+8. Lesson Chat Session Spec
+9. Minimal Data Model Spec
+10. MVP Screen Spec
+11. MVP Test Plan
+
+Each spec should be small enough to implement and test directly.
