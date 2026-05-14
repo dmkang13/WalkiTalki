@@ -1,5 +1,35 @@
 # WalkiTalki Agent Infrastructure Architecture
 
+## Table of Contents
+
+- [Goal](#goal)
+- [Core Concepts](#core-concepts)
+- [React App UX](#react-app-ux)
+- [Agent Tool Blocks and UX Ideas](#agent-tool-blocks-and-ux-ideas)
+  - [1. LLM Connector](#1-llm-connector)
+  - [2. Instructions](#2-instructions)
+  - [3. Skills](#3-skills)
+  - [4. Camera Access](#4-camera-access)
+  - [5. Microphone and Audio Access (Deferred)](#5-microphone-and-audio-access-deferred)
+  - [6. Memory](#6-memory)
+  - [7. Vector Stores](#7-vector-stores)
+  - [8. Database Access](#8-database-access)
+  - [9. OpenAPI API Tools](#9-openapi-api-tools)
+  - [10. User API Key and Token Connections](#10-user-api-key-and-token-connections)
+  - [11. Scripts](#11-scripts)
+  - [12. Database Schemas](#12-database-schemas)
+  - [13. Sharing and Permission Policy](#13-sharing-and-permission-policy)
+  - [14. Evaluation and Safety Rules](#14-evaluation-and-safety-rules)
+- [Backend Architecture](#backend-architecture)
+- [OpenAI Runtime vs WalkiTalki Platform](#openai-runtime-vs-walkitalki-platform)
+- [Database Design](#database-design)
+- [OpenAPI Handling](#openapi-handling)
+- [User API Key Handling](#user-api-key-handling)
+- [Agent Session Flow](#agent-session-flow)
+- [MVP Scope](#mvp-scope)
+- [Design Principles](#design-principles)
+- [Open Questions](#open-questions)
+
 ## Goal
 
 Create a React app where users can assemble, edit, access, and share agents.
@@ -315,7 +345,8 @@ Backend note:
 - Use operation ids, HTTP methods, paths, parameters, request schemas, response
   schemas, and security schemes from the spec.
 - Validate inputs against the OpenAPI schema before execution.
-- Return structured results to the LLM rather than raw unbounded responses.
+- Return structured results to the OpenAI runtime rather than raw unbounded
+  responses.
 
 ### 10. User API Key and Token Connections
 
@@ -353,7 +384,7 @@ Backend note:
 - Store encrypted credentials in a secrets store or encrypted credential table.
 - Store only a reference to the secret on agent connections.
 - Track key owner, provider, scopes, status, and last-used metadata.
-- Do not pass raw keys to the LLM or React client.
+- Do not pass raw keys to the OpenAI runtime or React client.
 - All API calls using user keys must execute server-side through the tool
   runtime.
 
@@ -436,18 +467,22 @@ Runner UI:
 - Validate and store OpenAPI specs.
 - Convert selected OpenAPI operations into callable agent tools.
 - Store agent versions so shared agents are stable.
-- Execute tools through server-side permission checks.
+- Resolve selected agent specs into OpenAI-compatible runtime configurations.
+- Create agent sessions with scoped grants for WalkiTalki-hosted resources.
+- Expose session-scoped DB, vector store, OpenAPI, and credential-backed tool
+  interfaces for OpenAI to use during the chat.
 - Store encrypted references to user API keys and provider tokens.
 - Keep credentials, private memory, vector store access, and database access off
   the client.
-- Log agent runs, tool calls, approvals, and errors.
+- Log agent sessions, resource access, approvals, and errors.
 
 ### Suggested Services
 
 - React client: builder, gallery, runner, and sharing UI.
 - App API: authentication, agent CRUD, sharing, comments, gallery, credential
-  connections, and runs.
-- Agent runtime service: prepares model calls and executes approved tools.
+  connections, and sessions.
+- Agent session service: resolves an agent version into an OpenAI runtime config
+  and creates scoped grants for the selected user session.
 - Tool registry service: skills, scripts, vector store tools, OpenAPI
   operations, and database tools.
 - OpenAPI ingestion service: validates specs and creates normalized tool records.
@@ -456,24 +491,31 @@ Runner UI:
 - Memory service: private user memory and agent-scoped memory.
 - Vector store service: manages semantic retrieval stores, chunk metadata,
   embedding jobs, and access policies.
+- Resource gateway: exposes session-scoped WalkiTalki DB, vector, OpenAPI, and
+  credential-backed interfaces to the OpenAI runtime.
 - Job service: sandboxed scripts, long-running imports, and evaluations.
 
 
-## OpenAI API vs WalkiTalki Database
+## OpenAI Runtime vs WalkiTalki Platform
 
-The OpenAI API should power model reasoning. The WalkiTalki database should own
-the platform state that makes agents shareable, permissioned, and reusable.
+WalkiTalki is the platform for creating, storing, versioning, and sharing agent
+specs. The OpenAI API is the runtime that does the LLM compute, spins up the
+chatbot experience from the selected spec, and calls the tools exposed for that
+agent session.
 
 ### OpenAI API Responsibilities
 
 OpenAI should handle:
 
+- Running the selected agent spec as a chatbot experience.
 - Model inference for chat, image understanding, planning, and response
   generation.
-- Tool-call selection when WalkiTalki provides tool schemas for the current
-  agent run.
+- Tool-call selection from the tool schemas WalkiTalki includes in the selected
+  agent spec.
 - Structured output generation when WalkiTalki needs model output to match a
   schema.
+- Calls to WalkiTalki-hosted DB, vector store, OpenAPI, and credential-backed
+  resource interfaces when those tools are included in the agent session.
 - Embeddings, vector store retrieval, or classification if WalkiTalki chooses to
   use OpenAI for semantic recall, search, or evaluation.
 
@@ -491,7 +533,7 @@ OpenAI should not be the source of truth for:
 - Public gallery listings
 - Audit logs
 
-### WalkiTalki Database Responsibilities
+### WalkiTalki Platform Responsibilities
 
 WalkiTalki should handle:
 
@@ -509,22 +551,24 @@ WalkiTalki should handle:
 - Durable product data such as uploaded documents, flashcards, lessons, stories,
   comments, and learning progress.
 - Sharing, forking, gallery, classroom, and collaboration records.
-- Runtime logs, tool-call logs, and audit history.
+- Agent sessions, session grants, resource access logs, and audit history.
 
-### Runtime Boundary
+### Session Boundary
 
 1. User opens an agent.
-2. WalkiTalki loads the agent version, skill ids, tool configs, memory scope,
-   vector store grants, database permissions, OpenAPI operation ids, and
-   credential grants.
-3. WalkiTalki sends OpenAI only the instructions, relevant context, and the
-   allowed tool schemas for this run.
-4. OpenAI generates a response or proposes a tool call.
-5. WalkiTalki validates the tool call against its database permissions, OpenAPI
-   schemas, credential grants, and confirmation rules.
-6. WalkiTalki executes the tool server-side.
-7. WalkiTalki sends the tool result back to OpenAI.
-8. WalkiTalki stores any durable outcomes in its own database.
+2. WalkiTalki loads the selected agent version and resolves its skill ids, tool
+   definitions, DB resources, vector stores, OpenAPI operations, and credential
+   requirements.
+3. WalkiTalki creates an agent session with scoped grants for the current user.
+4. WalkiTalki sends OpenAI the agent instructions, model settings, and tool
+   schemas for that session.
+5. OpenAI runs the chatbot experience and calls the tools included in the
+   session schema.
+6. WalkiTalki-hosted resource interfaces honor calls only when they include a
+   valid session grant for the requested DB resource, vector store, credential,
+   or OpenAPI operation.
+7. WalkiTalki stores durable outcomes in its own database and logs resource
+   access for the session.
 
 ### Skill ID Example
 
@@ -536,18 +580,18 @@ If a shared "Photo Vocabulary Tutor" agent uses these skills:
 
 Those skill ids live in WalkiTalki. When another user forks the agent,
 WalkiTalki copies references to the same skill ids into a new agent version.
-OpenAI receives the resolved instructions and tool schemas at runtime, but
-OpenAI does not manage the skill registry or decide who can share, fork, edit,
-or publish those skills.
+OpenAI receives the resolved instructions and tool schemas for the agent session,
+but OpenAI does not manage the skill registry or decide who can share, fork,
+edit, or publish those skills.
 
 ### Vector Store Example
 
 If a "Writing Coach" agent uses a personal recall vector store, WalkiTalki owns
-the vector store id, user grant, retention policy, and source metadata. The
-vector backend may store embeddings and return similar chunks, but WalkiTalki
-decides which chunks are allowed for the current user and agent. The canonical
-essay, comment, flashcard, or uploaded document still lives in the WalkiTalki
-database.
+the vector store id, session grant, retention policy, and source metadata. The
+vector backend may store embeddings and return similar chunks, but the vector
+store is exposed to OpenAI only through the selected session's permitted tool
+schema. The canonical essay, comment, flashcard, or uploaded document still
+lives in the WalkiTalki database.
 
 
 ## Database Design
@@ -795,27 +839,39 @@ database.
 - forked_by_user_id
 - created_at
 
-### Runtime Tables
+### Session Tables
 
-`agent_runs`
+`agent_sessions`
 - id
 - agent_id
 - agent_version_id
 - user_id
+- openai_session_ref
 - status
+- expires_at
 - started_at
 - completed_at
 
-`tool_calls`
+`agent_session_grants`
 - id
-- agent_run_id
-- tool_type
-- tool_name
-- request_json
-- response_json
+- agent_session_id
+- grant_type
+- resource_type
+- resource_id
+- allowed_actions_json
+- expires_at
 - status
-- requires_confirmation
-- confirmed_by_user_id
+- created_at
+
+`resource_access_logs`
+- id
+- agent_session_id
+- grant_id
+- resource_type
+- resource_id
+- action
+- metadata_json
+- status
 - created_at
 
 `audit_logs`
@@ -830,32 +886,33 @@ database.
 
 ## OpenAPI Handling
 
-The OpenAPI flow should be explicit and permissioned:
+The OpenAPI flow should be explicit at build time and session-scoped at run
+time:
 
 1. User imports a spec by URL or upload.
-2. Backend validates that it is a supported OpenAPI version.
-3. Backend parses paths, operations, schemas, parameters, request bodies,
+2. WalkiTalki validates that it is a supported OpenAPI version.
+3. WalkiTalki parses paths, operations, schemas, parameters, request bodies,
    response bodies, and security schemes.
-4. Backend creates an operation list for the builder UI.
+4. WalkiTalki creates an operation list for the builder UI.
 5. User selects allowed operations.
 6. User connects auth credentials through a server-side connection flow or
    chooses one of their saved API key connections.
 7. Agent version stores references to selected operation ids.
-8. At runtime, the agent proposes an operation call.
-9. Backend validates arguments against the operation schema.
-10. Backend checks agent permissions, user permissions, and confirmation rules.
-11. Backend executes the HTTP request server-side.
-12. Backend normalizes the response and sends structured results back to the
-    agent.
+8. When a user starts the agent, WalkiTalki creates a session grant for the
+   selected OpenAPI operations and credential references.
+9. WalkiTalki includes those operation schemas in the OpenAI agent session.
+10. OpenAI runs the agent and calls the permitted operation tools when useful.
+11. WalkiTalki's resource gateway honors those calls only when the session grant
+    allows the requested operation and credential.
 
 Important constraints:
 
 - Never send API keys to the React client.
-- Never let the LLM call arbitrary URLs from a spec.
+- Never let the OpenAI runtime call arbitrary URLs from a spec.
 - Only selected operations become tools.
 - Require confirmation for writes, purchases, messages, deletes, or public posts.
 - Keep raw API responses size-limited and schema-shaped before returning them to
-  the LLM.
+  the OpenAI runtime.
 - Shared agents must ask each user to connect their own key when an operation
   requires user-owned credentials.
 
@@ -877,8 +934,9 @@ Credential setup flow:
 5. Backend validates the credential with a safe test request when possible.
 6. Backend stores the secret encrypted and returns only non-secret metadata to
    the client.
-7. User grants a specific agent permission to use that credential.
-8. Runtime uses the credential only for approved tools and approved operations.
+7. User grants a specific agent session permission to use that credential.
+8. The OpenAI runtime can use the credential only through tools included in that
+   session's schema.
 
 Credential metadata shown in UI:
 
@@ -900,35 +958,36 @@ Credential controls:
 - Delete
 - View usage history
 - Set per-agent usage limits
-- Revoke an agent's access
+- Revoke an agent session's access
 
 Runtime rules:
 
 - Never put raw keys in prompts, tool descriptions, logs, or client responses.
 - Never copy keys when sharing or forking an agent.
-- Use the running user's key, not the agent creator's key, unless the creator is
-  the current user and has granted that agent access.
+- Use the running user's key, not the agent creator's key.
 - Confirm before using a key for high-cost, write, publish, purchase, message,
   or delete operations.
 - Log which credential reference was used, but not the credential value.
-- Allow users to revoke a credential globally or revoke one agent's grant.
+- Allow users to revoke a credential globally or revoke the current session's
+  grant.
 
 
-## Agent Runtime Flow
+## Agent Session Flow
 
 1. User opens an agent.
-2. Backend loads the current agent version.
-3. Backend resolves skills, tool definitions, memory scope, vector store grants,
-   database permissions, and API operations.
-4. Runtime constructs the LLM request with the agent instructions and available
-   tools.
-5. User sends text, image, or another supported input.
-6. LLM responds directly or requests a tool call.
-7. Backend validates and executes the tool call.
-8. Backend logs the tool call.
-9. LLM receives tool result and produces the final response.
-10. Runtime optionally writes memory, vector store items, or database records
-    after policy checks.
+2. WalkiTalki loads the current agent version.
+3. WalkiTalki resolves skills, tool definitions, memory scope, vector stores,
+   database resources, OpenAPI operations, and credential requirements.
+4. User grants session access to the needed WalkiTalki resources.
+5. WalkiTalki creates an `agent_session` and `agent_session_grants`.
+6. WalkiTalki sends OpenAI the selected agent spec, model settings, instructions,
+   and tool schemas for that session.
+7. OpenAI runs the chatbot experience.
+8. OpenAI calls the available session tools when needed.
+9. WalkiTalki resource interfaces serve DB, vector, OpenAPI, or credential-backed
+   requests that match the session grants.
+10. WalkiTalki records durable DB changes, memory updates, vector store items, and
+    resource access logs.
 
 
 ## MVP Scope
@@ -943,7 +1002,7 @@ The first version should support:
 - Camera block for photo-based lessons
 - Memory block for vocabulary and preferences
 - Vector store block for memory-like semantic recall
-- Basic database permission block for flashcards and lesson progress
+- Basic database session grants for flashcards and lesson progress
 - OpenAPI import with operation selection
 - User API key connection and encrypted credential storage
 - Private agents and link sharing
