@@ -40,8 +40,9 @@ general-purpose no-code agent builder. It is not a social learning network.
 The MVP is a focused test of one idea:
 
 > Can a user build a constrained photo-language agent, publish it into a runnable
-> state, share it by link, take or upload a picture, get a useful language
-> lesson about what the model sees, and chat naturally about those things?
+> state, share it by link, take a camera photo or upload an image, get a useful
+> language lesson about what the model sees, and chat naturally about those
+> things?
 
 Everything else is distraction until this loop works.
 
@@ -71,10 +72,10 @@ The MVP includes:
 - Shared-agent landing screen for recipients
 - Start-chat action from the published agent
 - Target language selection in the builder
-- Basic teaching style and instruction fields
+- Basic instruction fields
 - Disabled dummy capability icons in the builder
 - Image upload
-- Camera photo input if easy on web
+- Required browser camera photo input
 - Generated language lesson from the image
 - Vocabulary and phrase explanations based on visible objects
 - Follow-up chat about the image and lesson
@@ -155,12 +156,12 @@ Builder inputs:
 - Agent name
 - Target language
 - Optional native language
-- Teaching style
 - Optional custom instructions
 - Disabled future capability icons for visual context only
 
 Run inputs:
-- Image upload or camera photo
+- Camera photo
+- Image upload
 - Follow-up text questions
 
 Agent behavior:
@@ -339,10 +340,12 @@ Direct link sharing does not include:
 
 ### Image and Camera Input
 
-The app must accept an image and send it to the model with the lesson prompt.
+The app must support browser camera capture and image upload, then send the
+resulting image to the model with the lesson prompt.
 
-Camera and image upload would be good for the first working
-prototype if browser camera handling slows the build.
+Camera capture is required for the MVP. Image upload remains useful for testing,
+desktop use, and camera permission failures, but it does not replace the camera
+flow.
 
 ### Lesson Chat Session
 
@@ -396,7 +399,7 @@ The MVP must answer:
   accounts?
 - Do recipients understand that they must bring their own OpenAI API key?
 - Do dummy builder icons help users imagine the platform, or do they feel broken?
-- Is image upload enough, or is camera capture essential?
+- Does required camera capture make the photo lesson loop feel more immediate?
 - Is this compelling enough to justify agents, sharing, flashcards, memory, and
   vector recall later?
 
@@ -412,6 +415,7 @@ The MVP should expose the painful truths early:
 - Users assume the shared link includes the creator's API key or lesson history.
 - Dummy capability icons look clickable and broken instead of intentionally
   disabled.
+- Browser camera permissions or device support create too much friction.
 - Image lessons are not compelling.
 - Object recognition is too unreliable.
 - Lessons are too generic.
@@ -433,14 +437,14 @@ bigger.
 5. Published agent launch screen
 6. Direct share link
 7. Shared-agent landing screen
-8. Image upload
-9. Photo lesson prompt
-10. Lesson generation
-11. Lesson display
-12. Follow-up chat using the same image/lesson context
-13. Start-over-with-new-image flow
-14. Basic usage notice
-15. Optional browser camera capture
+8. Browser camera capture
+9. Image upload
+10. Photo lesson prompt
+11. Lesson generation
+12. Lesson display
+13. Follow-up chat using the same image/lesson context
+14. Start-over-with-new-image flow
+15. Basic usage notice
 
 Do not start flashcards, vector stores, memory, marketplace, OpenAPI import,
 scripts, audio, arbitrary tools, custom skills, forking, accounts, or public
