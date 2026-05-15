@@ -1,0 +1,36 @@
+.lesson {
+  display: grid;
+  gap: 14px;
+  color: var(--ink);
+}
+
+.lesson h1,
+.lesson h2,
+.lesson h3,
+.lesson p,
+.lesson ul,
+.lesson ol {
+  margin: 0;
+}
+
+.lesson h1 {
+  font-size: 1.45rem;
+}
+
+.lesson h2 {
+  font-size: 1.18rem;
+  margin-top: 6px;
+}
+
+.lesson h3 {
+  font-size: 1rem;
+}
+
+.lesson ul,
+.lesson ol {
+  padding-left: 22px;
+}
+
+.lesson li + li {
+  margin-top: 6px;
+}

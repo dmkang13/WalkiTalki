@@ -1,0 +1,91 @@
+.heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: end;
+  margin-bottom: 22px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.heading h1 {
+  margin: 0;
+  font-size: 2.25rem;
+}
+
+.heading p:not(.eyebrow) {
+  margin: 0;
+  color: var(--muted);
+}
+
+.builderGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 22px;
+  align-items: start;
+  margin-top: 18px;
+}
+
+.form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.count {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.error {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-weight: 650;
+}
+
+.side {
+  display: grid;
+  gap: 16px;
+}
+
+.form button[type="submit"] {
+  justify-self: start;
+}
+
+.form svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 900px) {
+  .heading {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .builderGrid {
+    grid-template-columns: 1fr;
+  }
+}

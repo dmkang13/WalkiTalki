@@ -1,0 +1,1 @@
+"""WalkiTalki FastAPI backend."""

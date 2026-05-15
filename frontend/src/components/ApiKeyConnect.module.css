@@ -1,0 +1,78 @@
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+.compact {
+  padding: 18px;
+}
+
+.header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.header svg {
+  width: 28px;
+  height: 28px;
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.header h2 {
+  margin: 0 0 6px;
+}
+
+.header p,
+.notice {
+  margin: 0;
+  color: var(--muted);
+}
+
+.form {
+  margin-top: 22px;
+}
+
+.form label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 650;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+}
+
+.row input {
+  flex: 1;
+}
+
+.notice {
+  margin-top: 12px;
+  font-size: 0.92rem;
+}
+
+.success,
+.error {
+  margin: 12px 0 0;
+  font-weight: 650;
+}
+
+.success {
+  color: var(--success);
+}
+
+.error {
+  color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .row {
+    flex-direction: column;
+  }
+}

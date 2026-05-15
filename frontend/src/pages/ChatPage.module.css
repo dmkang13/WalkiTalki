@@ -1,0 +1,170 @@
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.headerRow h1 {
+  margin: 6px 0 0;
+}
+
+.backLink {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.headerRow svg,
+.composer svg {
+  width: 18px;
+  height: 18px;
+}
+
+.chatGrid {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.side {
+  position: sticky;
+  top: 86px;
+}
+
+.mainPanel {
+  display: grid;
+  gap: 16px;
+}
+
+.lessonPanel,
+.messagesPanel,
+.state,
+.error {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.lessonHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.lessonHeader h2,
+.messagesPanel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.lessonHeader span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.messagesPanel {
+  display: grid;
+  gap: 14px;
+}
+
+.messages {
+  display: grid;
+  gap: 10px;
+  max-height: 440px;
+  overflow: auto;
+  outline-color: var(--accent);
+}
+
+.message {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.message span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.message p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.assistant {
+  background: #f7faf8;
+}
+
+.user {
+  background: #eef5fb;
+}
+
+.composer {
+  display: grid;
+  gap: 8px;
+}
+
+.retryRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.composer label {
+  font-weight: 700;
+}
+
+.composerRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.composer textarea {
+  resize: vertical;
+}
+
+.empty,
+.state {
+  color: var(--muted);
+}
+
+.empty,
+.state,
+.error {
+  margin: 0;
+}
+
+.error {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+@media (max-width: 880px) {
+  .chatGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .side {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .headerRow,
+  .composerRow {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+}

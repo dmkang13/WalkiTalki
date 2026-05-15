@@ -1,0 +1,49 @@
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.panel h2 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.item {
+  min-height: 76px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--page);
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.item svg {
+  width: 24px;
+  height: 24px;
+}
+
+.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: #f0f9f5;
+}
+
+.disabled {
+  color: #8b9691;
+  background: #f3f5f4;
+  cursor: not-allowed;
+}
