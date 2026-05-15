@@ -15,6 +15,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           <span>WalkiTalki</span>
         </Link>
         <nav className={styles.nav} aria-label="Primary navigation">
+          <NavLink to="/agents">Agents</NavLink>
           <NavLink to="/build">Build</NavLink>
           {hasApiKey ? (
             <button type="button" className={styles.textButton} onClick={() => void disconnect()}>

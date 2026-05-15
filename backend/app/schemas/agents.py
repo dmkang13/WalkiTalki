@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import Field, field_validator
@@ -65,6 +65,10 @@ class AgentRead(ApiSchema):
 
 class SharedAgentRead(AgentRead):
     share_slug: str
+
+
+class SharedAgentListRead(ApiSchema):
+    agents: List[SharedAgentRead]
 
 
 class AgentPublishRead(ApiSchema):

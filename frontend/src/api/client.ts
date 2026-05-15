@@ -4,6 +4,7 @@ import type {
   ApiKeyStatus,
   LessonSession,
   MessageResponse,
+  PublishedAgentList,
   PublishedAgent,
   PublishResponse
 } from "../types";
@@ -72,6 +73,10 @@ export const api = {
   getSharedAgent: (shareSlug: string) =>
     request<PublishedAgent>(`/api/shared-agents/${encodeURIComponent(shareSlug)}`, {
       friendlyError: "This shared agent is unavailable or is not published."
+    }),
+  listSharedAgents: () =>
+    request<PublishedAgentList>("/api/shared-agents", {
+      friendlyError: "Published agents could not be loaded."
     }),
   createLessonSession: (shareSlug: string, image: File | Blob) => {
     const data = new FormData();

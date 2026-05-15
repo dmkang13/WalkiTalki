@@ -30,16 +30,33 @@
   font-size: 1.08rem;
 }
 
-.primaryLink {
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.primaryLink,
+.secondaryLink {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-height: 44px;
   padding: 0 16px;
   border-radius: 7px;
+  font-weight: 800;
+}
+
+.primaryLink {
   color: #ffffff;
   background: var(--accent);
-  font-weight: 800;
+}
+
+.secondaryLink {
+  color: var(--ink);
+  background: #eef3f1;
+  border: 1px solid var(--border);
 }
 
 .primaryLink svg,

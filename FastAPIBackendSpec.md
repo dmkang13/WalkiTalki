@@ -57,6 +57,7 @@ The FastAPI backend owns:
 - Publish state
 - Share slug generation
 - Published-agent retrieval
+- Published-agent listing
 - Image upload validation
 - OpenAI Responses API calls
 - Lesson session persistence
@@ -386,6 +387,36 @@ Errors:
 - `404` share slug not found
 - `404` agent exists but is not published
 
+`GET /api/shared-agents`
+
+Purpose:
+- Return every published agent in the MVP.
+
+Response:
+
+```json
+{
+  "agents": [
+    {
+      "id": "uuid",
+      "shareSlug": "abc123",
+      "name": "Photo Language Tutor",
+      "targetLanguage": "Korean",
+      "nativeLanguage": "English",
+      "customInstructions": "Use simple examples.",
+      "status": "published"
+    }
+  ]
+}
+```
+
+Rules:
+
+- Return only published agents.
+- Order newest published agents first.
+- This is not a marketplace endpoint. Do not add ratings, profiles, ranking,
+  categories, or search in the MVP.
+
 ### Lesson Sessions
 
 `POST /api/shared-agents/{share_slug}/lesson-sessions`
@@ -621,6 +652,7 @@ Unit tests:
 - Agent draft ownership checks
 - Publish share slug generation
 - Shared-agent retrieval
+- Published-agent list
 - API key session status behavior
 - Image validation
 - Lesson session ownership checks
@@ -630,6 +662,7 @@ Unit tests:
 Integration tests:
 
 - Create agent -> publish -> fetch by share slug
+- Create multiple agents -> publish -> list published agents
 - Missing API key blocks lesson generation
 - Image upload creates lesson session when OpenAI client is mocked
 - Follow-up chat stores user and assistant messages when OpenAI client is mocked
@@ -647,6 +680,7 @@ Do not hit real OpenAI in default test runs.
 - A draft Photo Language Agent can be created.
 - A draft can be published into a direct share slug.
 - A published agent can be fetched by share slug without login.
+- Every published agent can be listed without login.
 - A lesson session can be created from an uploaded image using the current
   visitor's API key.
 - Camera-captured images use the same backend upload endpoint as file uploads.

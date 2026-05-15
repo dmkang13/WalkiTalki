@@ -13,7 +13,7 @@ from app.core.session import api_key_store
 from app.db.session import get_db
 from app.models.agent import AgentSpec, AgentStatus
 from app.models.lesson import ChatMessage, ChatRole, LessonSession, UsageEvent
-from app.schemas.agents import SharedAgentRead
+from app.schemas.agents import SharedAgentListRead, SharedAgentRead
 from app.schemas.lessons import LessonSessionRead
 from app.services.openai_client import OpenAIInvalidKeyError, OpenAIUnavailableError, openai_client
 from app.services.prompts import build_initial_lesson_prompt
@@ -27,6 +27,16 @@ SUPPORTED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 def get_shared_agent(share_slug: str, db: Session = Depends(get_db)) -> AgentSpec:
     agent = _published_agent_by_slug(db, share_slug)
     return agent
+
+
+@router.get("", response_model=SharedAgentListRead, response_model_by_alias=True)
+def list_shared_agents(db: Session = Depends(get_db)) -> SharedAgentListRead:
+    agents = db.scalars(
+        select(AgentSpec)
+        .where(AgentSpec.status == AgentStatus.published)
+        .order_by(AgentSpec.published_at.desc(), AgentSpec.created_at.desc())
+    ).all()
+    return SharedAgentListRead(agents=agents)
 
 
 @router.post("/{share_slug}/lesson-sessions", response_model=LessonSessionRead, response_model_by_alias=True)

@@ -15,6 +15,10 @@ export type PublishedAgent = AgentDraft & {
   shareSlug: string;
 };
 
+export type PublishedAgentList = {
+  agents: PublishedAgent[];
+};
+
 export type PublishResponse = {
   id: string;
   status: "published";

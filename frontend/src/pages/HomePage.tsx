@@ -18,10 +18,15 @@ export default function HomePage() {
             Connect your own OpenAI key, publish one constrained agent, then let recipients run lessons with their own key.
           </p>
           {hasApiKey ? (
-            <Link className={styles.primaryLink} to="/build">
-              Create Photo Language Agent
-              <ArrowRightIcon aria-hidden="true" />
-            </Link>
+            <div className={styles.actions}>
+              <Link className={styles.primaryLink} to="/build">
+                Create Photo Language Agent
+                <ArrowRightIcon aria-hidden="true" />
+              </Link>
+              <Link className={styles.secondaryLink} to="/agents">
+                View Published Agents
+              </Link>
+            </div>
           ) : null}
         </section>
         <aside>

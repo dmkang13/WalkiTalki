@@ -1,13 +1,16 @@
-.headerRow {
+.pageHeader {
   display: flex;
   justify-content: space-between;
   gap: 18px;
-  align-items: center;
-  margin-bottom: 20px;
+  align-items: flex-start;
+  margin-bottom: 14px;
 }
 
-.headerRow h1 {
+.pageHeader h1 {
   margin: 6px 0 0;
+  font-size: 2rem;
+  line-height: 1.1;
+  text-align: left;
 }
 
 .backLink {
@@ -15,31 +18,70 @@
   font-weight: 700;
 }
 
-.headerRow svg,
-.composer svg {
+.pageHeader svg,
+.composer svg,
+.metadataToggle svg {
   width: 18px;
   height: 18px;
 }
 
-.chatGrid {
+.metadata {
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.metadataToggle {
+  width: 100%;
+  justify-content: space-between;
+  min-height: 48px;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.metadataToggle:hover:not(:disabled) {
+  background: #f4f8f6;
+}
+
+.metadataToggle svg {
+  transition: transform 160ms ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.metadataGrid {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0 18px 18px;
 }
 
-.side {
-  position: sticky;
-  top: 86px;
+.metadataGrid div {
+  min-width: 0;
 }
 
-.mainPanel {
-  display: grid;
-  gap: 16px;
+.metadataGrid dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
-.lessonPanel,
-.messagesPanel,
+.metadataGrid dd {
+  margin: 5px 0 0;
+}
+
+.instructions {
+  grid-column: 1 / -1;
+}
+
+.chatPanel,
 .state,
 .error {
   background: var(--surface);
@@ -48,50 +90,36 @@
   padding: 18px;
 }
 
-.lessonHeader {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
+.chatPanel {
+  display: grid;
+  gap: 16px;
 }
 
-.lessonHeader h2,
-.messagesPanel h2 {
+.chatPanel h2 {
   margin: 0;
   font-size: 1.1rem;
 }
 
-.lessonHeader span {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.messagesPanel {
-  display: grid;
-  gap: 14px;
-}
-
 .messages {
   display: grid;
-  gap: 10px;
-  max-height: 440px;
+  gap: 14px;
+  min-height: 260px;
+  max-height: 58vh;
   overflow: auto;
   outline-color: var(--accent);
+  padding-right: 4px;
 }
 
 .message {
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  display: grid;
+  gap: 7px;
+  max-width: min(760px, 100%);
 }
 
-.message span {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 0.78rem;
+.message > span {
   color: var(--muted);
+  font-size: 0.78rem;
   font-weight: 800;
-  text-transform: uppercase;
 }
 
 .message p {
@@ -100,11 +128,24 @@
 }
 
 .assistant {
-  background: #f7faf8;
+  justify-self: start;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfdfc;
 }
 
 .user {
-  background: #eef5fb;
+  justify-self: end;
+  padding: 12px 14px;
+  border-radius: 18px;
+  color: #ffffff;
+  background: var(--accent);
+}
+
+.user > span {
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .composer {
@@ -112,26 +153,57 @@
   gap: 8px;
 }
 
+.composer label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.composerShell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: #ffffff;
+}
+
+.composerShell:focus-within {
+  border-color: var(--accent);
+  outline: 3px solid rgba(24, 114, 85, 0.15);
+}
+
+.composer textarea {
+  min-height: 42px;
+  max-height: 160px;
+  resize: vertical;
+  border: 0;
+  border-radius: 16px;
+  padding: 10px 12px;
+  outline: 0;
+}
+
+.composer textarea:focus {
+  border-color: transparent;
+  outline: 0;
+}
+
+.composer button[type="submit"] {
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 50%;
+}
+
 .retryRow {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-}
-
-.composer label {
-  font-weight: 700;
-}
-
-.composerRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: end;
-}
-
-.composer textarea {
-  resize: vertical;
 }
 
 .empty,
@@ -150,21 +222,12 @@
   font-weight: 700;
 }
 
-@media (max-width: 880px) {
-  .chatGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .side {
-    position: static;
-  }
-}
-
 @media (max-width: 640px) {
-  .headerRow,
-  .composerRow {
-    align-items: stretch;
-    grid-template-columns: 1fr;
+  .pageHeader {
     flex-direction: column;
+  }
+
+  .metadataGrid {
+    grid-template-columns: 1fr;
   }
 }

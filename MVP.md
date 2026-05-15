@@ -70,6 +70,7 @@ The MVP includes:
 - Private publish step that makes the agent runnable
 - Direct share link for the published photo-language agent
 - Shared-agent landing screen for recipients
+- Published agents list for every agent published in the MVP
 - Start-chat action from the published agent
 - Target language selection in the builder
 - Basic instruction fields
@@ -235,7 +236,18 @@ Hard rule:
 - The link shares the agent spec only. It does not share the creator's API key,
   lesson session, uploaded image, chat history, or private data.
 
-### 4. Start Photo Lesson Chat
+### 4. Browse Published Agents
+
+1. User opens the published agents list.
+2. User sees every agent that has been published in the MVP.
+3. User opens any published agent.
+4. User can start a new chat with that agent using their own OpenAI API key.
+
+Hard rule:
+- The list is a utility page, not a marketplace. It has no ratings, profiles,
+  ranking, categories, search, or creator pages.
+
+### 5. Start Photo Lesson Chat
 
 1. User opens the published agent or a shared-agent link.
 2. User starts a chat.
@@ -244,7 +256,7 @@ Hard rule:
 5. OpenAI analyzes the image and generates the language lesson.
 6. User sees the lesson.
 
-### 5. Chat About the Lesson
+### 6. Chat About the Lesson
 
 1. User asks follow-up questions.
 2. Agent answers using the image and generated lesson context.
@@ -259,6 +271,7 @@ Hard rule:
 - Connect OpenAI API key
 - Build Photo Language Agent
 - Published agent launch screen
+- Published agents list screen
 - Share link action
 - Shared-agent landing screen
 - Lesson result and chat screen
@@ -338,6 +351,14 @@ Direct link sharing does not include:
 - Ratings
 - Search or marketplace placement
 
+### Published Agents List
+
+The MVP should include a simple page that lists every published agent.
+
+This is not a marketplace. It has no ratings, profiles, search ranking,
+categories, moderation, or creator pages. It is only a utility surface for
+accessing published MVP agents.
+
 ### Image and Camera Input
 
 The app must support browser camera capture and image upload, then send the
@@ -397,6 +418,8 @@ The MVP must answer:
 - Do users understand that their key pays for compute?
 - Does direct-link sharing make the agent feel reusable without requiring
   accounts?
+- Does a simple published agents list make it easier to re-open and compare
+  agents without implying a marketplace?
 - Do recipients understand that they must bring their own OpenAI API key?
 - Do dummy builder icons help users imagine the platform, or do they feel broken?
 - Does required camera capture make the photo lesson loop feel more immediate?
@@ -436,13 +459,13 @@ bigger.
 4. Private publish step
 5. Published agent launch screen
 6. Direct share link
-7. Shared-agent landing screen
-8. Browser camera capture
-9. Image upload
-10. Photo lesson prompt
-11. Lesson generation
-12. Lesson display
-13. Follow-up chat using the same image/lesson context
+7. Published agents list
+8. Shared-agent landing screen
+9. Browser camera capture
+10. Image upload
+11. Photo lesson prompt
+12. Lesson generation
+13. Chat display using the same image/lesson context
 14. Start-over-with-new-image flow
 15. Basic usage notice
 

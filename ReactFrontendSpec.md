@@ -100,6 +100,12 @@ described here.
 - Photo Language Agent builder.
 - Lets the user configure the single supported agent type.
 
+`/agents`
+- Published agents list.
+- Shows every agent published in the MVP.
+- Provides a button/link to open each published agent.
+- This is a utility list, not a marketplace.
+
 `/agents/:shareSlug`
 - Published/shared agent landing screen.
 - Used by both creator and recipient.
@@ -216,7 +222,24 @@ Behavior:
 - Copy button copies the direct link to `/agents/:shareSlug`.
 - Show copied confirmation.
 
-### 5. Shared-Agent Landing Screen
+### 5. Published Agents List Screen
+
+Purpose:
+- Let the user access every agent ever published in the MVP.
+
+UI requirements:
+- Button in primary navigation that opens `/agents`.
+- List of published agent cards.
+- Each card shows agent name, target language, native language if present, and
+  custom instruction summary if present.
+- Each card has an open/start action.
+- Empty state when no agents have been published.
+
+Behavior:
+- The list is public within the MVP.
+- No search, ranking, ratings, categories, profiles, or marketplace behavior.
+
+### 6. Shared-Agent Landing Screen
 
 Purpose:
 - Let someone else open the link and run the shared agent with their own key.
@@ -232,17 +255,26 @@ Behavior:
 - Recipient cannot edit or fork the agent.
 - Recipient cannot see creator lesson sessions, uploaded images, or chat history.
 
-### 6. Lesson Chat Screen
+### 7. Lesson Chat Screen
 
 Purpose:
 - Generate and discuss a language lesson from a photo.
 
 Initial state:
-- Agent summary compact header.
+- Agent title at the very top, left-aligned.
+- Collapsible metadata panel below the title.
 - Camera capture control.
 - Image upload control.
-- Empty lesson area.
+- Single chat section.
 - Chat input disabled until a lesson exists.
+
+Metadata panel:
+- Starts collapsed.
+- Shows target language.
+- Shows native language if present.
+- Shows instruction summary if present.
+- Shows model when usage is available.
+- Shows token count when usage is available.
 
 Camera capture requirements:
 - Browser camera capture is required in the MVP.
@@ -259,14 +291,19 @@ Image upload requirements:
 - Show loading state while lesson is generated.
 
 Lesson result requirements:
-- Render generated lesson text clearly.
-- Make vocabulary, phrases, and practice questions easy to read.
-- Preserve enough context to continue chat.
+- Do not render a separate "Generated lesson" section.
+- The initial LLM lesson appears as the first assistant message in the chat.
+- Assistant messages render with the same readable markdown treatment as the
+  generated lesson display.
 
 Chat requirements:
 - Text input for follow-up questions.
 - Follow-up question max length is 1,000 characters.
 - Message list with user and assistant messages.
+- Assistant messages render markdown.
+- User messages render as standard chat bubbles.
+- Composer should look like a familiar modern chatbot input: rounded text box,
+  send button on the right, and minimal label chrome.
 - Loading state for assistant response.
 - Error state with retry.
 - Start-over action that clears the current lesson view and lets the user submit
@@ -290,6 +327,7 @@ Fetch via API:
 - API key session status
 - Agent draft/create response
 - Published agent by share slug
+- Published agents list
 - Lesson session
 - Chat messages for active lesson session
 
@@ -399,6 +437,26 @@ Response:
   "nativeLanguage": "English",
   "customInstructions": "Use simple examples.",
   "status": "published"
+}
+```
+
+`GET /api/shared-agents`
+
+Response:
+
+```json
+{
+  "agents": [
+    {
+      "id": "uuid",
+      "shareSlug": "abc123",
+      "name": "Photo Language Tutor",
+      "targetLanguage": "Korean",
+      "nativeLanguage": "English",
+      "customInstructions": "Use simple examples.",
+      "status": "published"
+    }
+  ]
 }
 ```
 
@@ -535,6 +593,8 @@ Design priorities:
 - Dummy capability icons appear but cannot be configured.
 - A visitor can publish the agent.
 - A visitor can copy a direct share link.
+- A visitor can open a published agents list from the navigation.
+- A visitor can access every published MVP agent from the list.
 - A recipient can open the share link without logging in.
 - A recipient must connect their own OpenAI API key before generating a lesson.
 - A visitor can take a camera photo and receive a lesson.

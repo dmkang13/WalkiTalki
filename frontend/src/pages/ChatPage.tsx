@@ -1,8 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowPathIcon, PaperAirplaneIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, ChevronDownIcon, PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import { api } from "../api/client";
-import AgentSummary from "../components/AgentSummary";
 import ApiKeyConnect from "../components/ApiKeyConnect";
 import ImageCapture from "../components/ImageCapture";
 import Layout from "../components/Layout";
@@ -25,6 +24,7 @@ export default function ChatPage() {
   const [chatError, setChatError] = useState("");
   const [failedPrompt, setFailedPrompt] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isMetadataOpen, setIsMetadataOpen] = useState(false);
   const chatValidation = useMemo(() => validateChatDraft(draft), [draft]);
 
   useEffect(() => {
@@ -98,12 +98,12 @@ export default function ChatPage() {
 
   return (
     <Layout>
-      <div className={styles.headerRow}>
+      <div className={styles.pageHeader}>
         <div>
           <Link to={`/agents/${shareSlug}`} className={styles.backLink}>
             Back to agent
           </Link>
-          <h1>Lesson chat</h1>
+          <h1>{agent?.name ?? "Lesson chat"}</h1>
         </div>
         {lesson ? (
           <button type="button" onClick={startOver}>
@@ -116,70 +116,85 @@ export default function ChatPage() {
       {agentError ? <p className={styles.error}>{agentError}</p> : null}
       {!isChecking && !hasApiKey ? <ApiKeyConnect compact /> : null}
 
-      <div className={styles.chatGrid}>
-        <aside className={styles.side}>{agent ? <AgentSummary agent={agent} compact /> : <p className={styles.state}>Loading agent...</p>}</aside>
-        <section className={styles.mainPanel}>
-          {!lesson ? <ImageCapture disabled={!hasApiKey} onImageReady={handleImageReady} /> : null}
-          {lessonError ? <p className={styles.error}>{lessonError}</p> : null}
-
-          <section className={styles.lessonPanel} aria-labelledby="lesson-title">
-            <div className={styles.lessonHeader}>
-              <h2 id="lesson-title">Generated lesson</h2>
-              {usage ? (
-                <span>
-                  {usage.model} · {usage.totalTokens} tokens
-                </span>
-              ) : null}
+      <section className={styles.metadata}>
+        <button type="button" className={styles.metadataToggle} onClick={() => setIsMetadataOpen((current) => !current)}>
+          Agent details
+          <ChevronDownIcon className={isMetadataOpen ? styles.chevronOpen : ""} aria-hidden="true" />
+        </button>
+        {isMetadataOpen ? (
+          <dl className={styles.metadataGrid}>
+            <div>
+              <dt>Target language</dt>
+              <dd>{agent?.targetLanguage ?? "Loading..."}</dd>
             </div>
-            {lesson ? <MarkdownLesson markdown={lesson.lessonMarkdown} /> : <p className={styles.empty}>Submit a photo to generate the first lesson.</p>}
-          </section>
-
-          <section className={styles.messagesPanel} aria-labelledby="messages-title">
-            <h2 id="messages-title">Chat</h2>
-            <div className={styles.messages} tabIndex={0}>
-              {messages.length ? (
-                messages.map((message) => (
-                  <article key={message.id} className={`${styles.message} ${styles[message.role]}`}>
-                    <span>{message.role === "assistant" ? "Assistant" : "You"}</span>
-                    <p>{message.content}</p>
-                  </article>
-                ))
-              ) : (
-                <p className={styles.empty}>Follow-up chat unlocks after a lesson exists.</p>
-              )}
-              {isSending ? <p className={styles.state}>Assistant is responding...</p> : null}
+            <div>
+              <dt>Native language</dt>
+              <dd>{agent?.nativeLanguage || "Not set"}</dd>
             </div>
-            {chatError ? (
-              <div className={styles.retryRow}>
-                <p className={styles.error}>{chatError}</p>
-                <button type="button" onClick={() => void sendPrompt(failedPrompt)} disabled={!failedPrompt || isSending}>
-                  <ArrowPathIcon aria-hidden="true" />
-                  Retry
-                </button>
-              </div>
-            ) : null}
-            <form className={styles.composer} onSubmit={sendMessage}>
-              <label htmlFor="chat-draft">Follow-up question</label>
-              <div className={styles.composerRow}>
-                <textarea
-                  id="chat-draft"
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  disabled={!lesson || isSending}
-                  rows={3}
-                  maxLength={1100}
-                  placeholder="Can you give me a simpler example?"
-                />
-                <button type="submit" disabled={!lesson || isSending || Boolean(chatValidation)}>
-                  <PaperAirplaneIcon aria-hidden="true" />
-                  Send
-                </button>
-              </div>
-              {lesson && chatValidation && draft ? <p className={styles.error}>{chatValidation}</p> : null}
-            </form>
-          </section>
-        </section>
-      </div>
+            <div>
+              <dt>Model</dt>
+              <dd>{usage?.model || "Not used yet"}</dd>
+            </div>
+            <div>
+              <dt>Tokens used</dt>
+              <dd>{usage?.totalTokens ?? "Not used yet"}</dd>
+            </div>
+            <div className={styles.instructions}>
+              <dt>Instruction summary</dt>
+              <dd>{agent?.customInstructions || "No custom instructions."}</dd>
+            </div>
+          </dl>
+        ) : null}
+      </section>
+
+      <section className={styles.chatPanel} aria-labelledby="chat-title">
+        <h2 id="chat-title">Chat</h2>
+        {!lesson ? <ImageCapture disabled={!hasApiKey} onImageReady={handleImageReady} /> : null}
+        {lessonError ? <p className={styles.error}>{lessonError}</p> : null}
+
+        <div className={styles.messages} tabIndex={0}>
+          {messages.length ? (
+            messages.map((message) => (
+              <article key={message.id} className={`${styles.message} ${styles[message.role]}`}>
+                <span>{message.role === "assistant" ? "WalkiTalki" : "You"}</span>
+                {message.role === "assistant" ? <MarkdownLesson markdown={message.content} /> : <p>{message.content}</p>}
+              </article>
+            ))
+          ) : (
+            <p className={styles.empty}>Take a photo or upload an image to start the chat.</p>
+          )}
+          {isSending ? <p className={styles.state}>WalkiTalki is responding...</p> : null}
+        </div>
+
+        {chatError ? (
+          <div className={styles.retryRow}>
+            <p className={styles.error}>{chatError}</p>
+            <button type="button" onClick={() => void sendPrompt(failedPrompt)} disabled={!failedPrompt || isSending}>
+              <ArrowPathIcon aria-hidden="true" />
+              Retry
+            </button>
+          </div>
+        ) : null}
+
+        <form className={styles.composer} onSubmit={sendMessage}>
+          <label htmlFor="chat-draft">Message WalkiTalki</label>
+          <div className={styles.composerShell}>
+            <textarea
+              id="chat-draft"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              disabled={!lesson || isSending}
+              rows={1}
+              maxLength={1100}
+              placeholder={lesson ? "Ask a follow-up..." : "Start with a photo first"}
+            />
+            <button type="submit" aria-label="Send message" disabled={!lesson || isSending || Boolean(chatValidation)}>
+              <PaperAirplaneIcon aria-hidden="true" />
+            </button>
+          </div>
+          {lesson && chatValidation && draft ? <p className={styles.error}>{chatValidation}</p> : null}
+        </form>
+      </section>
     </Layout>
   );
 }
