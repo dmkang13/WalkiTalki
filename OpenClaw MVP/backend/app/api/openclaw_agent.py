@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Cookie, File, Response, UploadFile
+from fastapi import APIRouter, Cookie, File, HTTPException, Response, UploadFile
 
 from app.schemas.openclaw import (
     AgentSummary,
@@ -14,12 +14,12 @@ from app.schemas.openclaw import (
     SkillValidationResponse,
 )
 from app.services.example_agent import get_example_agent
-from app.services.openclaw_client import MockOpenClawClient
+from app.services.openclaw_client import OpenClawClient, OpenClawError
 from app.services.openclaw_sessions import SessionStore
 
 router = APIRouter()
 session_store = SessionStore()
-openclaw_client = MockOpenClawClient()
+openclaw_client = OpenClawClient()
 
 SESSION_COOKIE = "openclaw_browser_session"
 
@@ -50,7 +50,10 @@ def start_session(
 ) -> SessionRead:
     browser_id = get_browser_session_id(response, browser_session_id)
     agent = get_example_agent()
-    runtime = openclaw_client.create_session(agent, payload.custom_instructions)
+    try:
+        runtime = openclaw_client.create_session(agent, payload.custom_instructions)
+    except OpenClawError as exc:
+        raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
     record = session_store.start_session(
         browser_session_id=browser_id,
         agent_id=agent.agent_id,
@@ -72,7 +75,10 @@ def confirm_login(
 ) -> SessionRead:
     browser_id = get_browser_session_id(response, browser_session_id)
     record = session_store.require_session(browser_id)
-    runtime = openclaw_client.confirm_login(record.openclaw_session_id)
+    try:
+        runtime = openclaw_client.confirm_login(record.openclaw_session_id)
+    except OpenClawError as exc:
+        raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
     updated = session_store.update_runtime(
         browser_id,
         runtime_status=runtime.runtime_status,
@@ -92,7 +98,10 @@ def send_chat(
 ) -> ChatResponse:
     browser_id = get_browser_session_id(response, browser_session_id)
     record = session_store.require_ready_session(browser_id)
-    result = openclaw_client.send_text(record.openclaw_session_id, payload.message)
+    try:
+        result = openclaw_client.send_text(record.openclaw_session_id, payload.message)
+    except OpenClawError as exc:
+        raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
     session_store.append_message(browser_id, "user", payload.message)
     session_store.append_message(browser_id, "assistant", result.message)
     return ChatResponse(
@@ -113,13 +122,16 @@ async def send_image_lesson(
     browser_id = get_browser_session_id(response, browser_session_id)
     record = session_store.require_ready_session(browser_id)
     image_bytes = await image.read()
-    result = openclaw_client.send_image_lesson(
+    try:
+        result = openclaw_client.send_image_lesson(
         session_id=record.openclaw_session_id,
         filename=image.filename or "uploaded-image",
         content_type=image.content_type or "application/octet-stream",
-        byte_count=len(image_bytes),
+        image_bytes=image_bytes,
         prompt=prompt,
-    )
+        )
+    except OpenClawError as exc:
+        raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
     session_store.append_message(
         browser_id,
         "user",
@@ -142,7 +154,10 @@ def validate_skill(
 ) -> SkillValidationResponse:
     browser_id = get_browser_session_id(response, browser_session_id)
     record = session_store.require_ready_session(browser_id)
-    result = openclaw_client.invoke_validation_skill(record.openclaw_session_id)
+    try:
+        result = openclaw_client.invoke_validation_skill(record.openclaw_session_id)
+    except OpenClawError as exc:
+        raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
     updated = session_store.update_skill_status(browser_id, "invoked")
     session_store.append_message(browser_id, "assistant", result.message)
     return SkillValidationResponse(

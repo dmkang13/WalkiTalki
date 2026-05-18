@@ -18,10 +18,29 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Request failed with ${response.status}`);
+    throw new Error(await readError(response, `Request failed with ${response.status}`));
   }
   return response.json() as Promise<T>;
+}
+
+async function readError(response: Response, fallback: string): Promise<string> {
+  const text = await response.text();
+  if (!text) return fallback;
+  try {
+    const parsed = JSON.parse(text) as { detail?: unknown };
+    if (typeof parsed.detail === 'string') return parsed.detail;
+    if (
+      parsed.detail &&
+      typeof parsed.detail === 'object' &&
+      'message' in parsed.detail &&
+      typeof parsed.detail.message === 'string'
+    ) {
+      return parsed.detail.message;
+    }
+  } catch {
+    return text;
+  }
+  return text;
 }
 
 export function getAgent(): Promise<AgentSummary> {
@@ -60,8 +79,7 @@ export async function sendImageLesson(file: File): Promise<ImageLessonResponse> 
     body,
   });
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Image upload failed with ${response.status}`);
+    throw new Error(await readError(response, `Image upload failed with ${response.status}`));
   }
   return response.json() as Promise<ImageLessonResponse>;
 }

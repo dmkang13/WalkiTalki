@@ -1,0 +1,5 @@
+Error: models auth login requires an interactive TTY. In automation, use openclaw models auth paste-token --provider <provider> when token auth is available.
+[2K
+🦞 OpenClaw 2026.5.12 (f066dd2)
+   We ship features faster than Apple ships calculator updates.
+
