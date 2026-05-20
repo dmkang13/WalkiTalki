@@ -1,6 +1,6 @@
-import base64
 import fcntl
 import json
+import logging
 import os
 import pty
 import re
@@ -9,12 +9,25 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Iterator, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
 from app.schemas.openclaw import ExampleAgent
+
+
+logger = logging.getLogger("openclaw.backend.debug")
+
+
+def debug_requests_enabled() -> bool:
+    return os.getenv("OPENCLAW_DEBUG_REQUESTS", "").lower() in {"1", "true", "yes", "on"}
+
+
+def _format_body(body: bytes) -> str:
+    if not body:
+        return "<empty>"
+    return body.decode("utf-8", errors="replace")
 
 
 class OpenClawError(RuntimeError):
@@ -77,12 +90,28 @@ class OpenClawClient:
         session_id = "oc_" + uuid4().hex[:16]
         self._sessions[session_id] = {
             "agent_id": agent.agent_id,
+            "agent_name": agent.name,
+            "agent_instructions": agent.instructions,
+            "target_language": agent.target_language,
+            "native_language": agent.native_language,
             "custom_instructions": custom_instructions,
         }
 
         self._ensure_cli_available()
         self._ensure_workspace()
         self._ensure_gateway_running()
+
+        auth_status = self._probe_provider_auth(ignore_running_login=True)
+        if auth_status["connected"]:
+            return RuntimeSessionResult(
+                openclaw_session_id=session_id,
+                runtime_status="ready",
+                provider_status="connected",
+                login_url=None,
+                model=self.model,
+                provider=f"ChatGPT/OpenAI via {self.provider}",
+                diagnostic=auth_status.get("diagnostic"),
+            )
 
         login_result = self._start_provider_login()
         return RuntimeSessionResult(
@@ -100,7 +129,7 @@ class OpenClawClient:
         self._ensure_cli_available()
         self._ensure_gateway_running()
 
-        auth_status = self._probe_provider_auth()
+        auth_status = self._probe_provider_auth(ignore_running_login=True)
         if not auth_status["connected"]:
             return RuntimeSessionResult(
                 openclaw_session_id=session_id,
@@ -122,23 +151,21 @@ class OpenClawClient:
         )
 
     def send_text(self, session_id: str, message: str) -> AssistantResult:
-        self._require_session(session_id)
-        return self._responses_call(
-            [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": (
-                                "Continue the photo-language tutoring session. "
-                                f"User message: {message}"
-                            ),
-                        }
-                    ],
-                }
-            ]
+        session = self._require_session(session_id)
+        return self._infer_model_run(
+            prompt=self._build_text_prompt(session, message)
         )
+
+    def stream_text(self, session_id: str, message: str) -> Iterator[Dict[str, object]]:
+        session = self._require_session(session_id)
+        self._ensure_gateway_running()
+        prompt = self._build_text_prompt(session, message)
+        try:
+            yield from self._stream_gateway_response(prompt)
+        except OpenClawError:
+            raise
+        except Exception as exc:
+            raise OpenClawError("openclaw_stream_failed", str(exc)) from exc
 
     def send_image_lesson(
         self,
@@ -160,39 +187,22 @@ class OpenClawClient:
         if prompt:
             prompt_text += f"\nAdditional user prompt: {prompt}"
 
-        encoded = base64.b64encode(image_bytes).decode("ascii")
-        data_url = f"data:{content_type};base64,{encoded}"
-        return self._responses_call(
-            [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": prompt_text},
-                        {"type": "input_image", "image_url": data_url},
-                    ],
-                }
-            ]
-        )
+        upload_dir = self.workspace / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        suffix = Path(filename).suffix or ".image"
+        image_path = upload_dir / f"{uuid4().hex}{suffix}"
+        image_path.write_bytes(image_bytes)
+        return self._infer_model_run(prompt=prompt_text, image_path=image_path)
 
     def invoke_validation_skill(self, session_id: str) -> SkillResult:
         self._require_session(session_id)
-        result = self._responses_call(
-            [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": (
-                                "Use the allowlisted lesson-formatting skill for this agent. "
-                                "Return a response with exactly these sections: Vocabulary, "
-                                "Practical Phrases, Practice. Mention that the formatting "
-                                "came from the validation skill."
-                            ),
-                        }
-                    ],
-                }
-            ]
+        result = self._infer_model_run(
+            prompt=(
+                "Use the allowlisted lesson-formatting skill for this agent. "
+                "Return a response with exactly these sections: Vocabulary, "
+                "Practical Phrases, Practice. Mention that the formatting "
+                "came from the validation skill."
+            )
         )
         return SkillResult(
             skill_name="Lesson Formatting Skill",
@@ -269,8 +279,13 @@ class OpenClawClient:
 
     def _gateway_responds(self) -> bool:
         try:
-            request = Request(self.gateway_url.rstrip("/") + "/", method="GET")
-            with urlopen(request, timeout=2):
+            url = self.gateway_url.rstrip("/") + "/"
+            if debug_requests_enabled():
+                logger.info("GATEWAY OUT GET %s", url)
+            request = Request(url, method="GET")
+            with urlopen(request, timeout=2) as response:
+                if debug_requests_enabled():
+                    logger.info("GATEWAY IN  GET / -> %s", response.status)
                 return True
         except Exception:
             return False
@@ -304,8 +319,8 @@ class OpenClawClient:
             "diagnostic": output or "OpenClaw provider login process started.",
         }
 
-    def _probe_provider_auth(self) -> Dict[str, Optional[str]]:
-        if self._login_process and self._login_process.poll() is None:
+    def _probe_provider_auth(self, ignore_running_login: bool = False) -> Dict[str, Optional[str]]:
+        if self._login_process and self._login_process.poll() is None and not ignore_running_login:
             output = self._read_login_output()
             return {
                 "connected": False,
@@ -319,71 +334,162 @@ class OpenClawClient:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            timeout=30,
+            timeout=45,
             check=False,
         )
         output = result.stdout or ""
-        connected = result.returncode == 0 and self.provider in output
+        connected = (
+            result.returncode == 0
+            and self.provider in output
+            and "ok expires" in output
+        )
         return {
             "connected": connected,
             "login_url": self._extract_url(output),
             "diagnostic": output,
         }
 
-    def _responses_call(self, input_items: list) -> AssistantResult:
-        payload = {
-            "model": self.model,
-            "input": input_items,
-        }
-        data = self._request_json("POST", "/v1/responses", payload, timeout=120)
+    def _infer_model_run(
+        self,
+        prompt: str,
+        image_path: Optional[Path] = None,
+    ) -> AssistantResult:
+        cmd = [
+            self.cli,
+            "infer",
+            "model",
+            "run",
+            "--gateway",
+            "--model",
+            self.model,
+            "--prompt",
+            prompt,
+            "--json",
+        ]
+        if image_path is not None:
+            cmd.extend(["--file", str(image_path)])
+        result = subprocess.run(
+            cmd,
+            cwd=str(self.workspace),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=180,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise OpenClawError(
+                "openclaw_inference_failed",
+                result.stdout or "OpenClaw inference command failed.",
+            )
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise OpenClawError(
+                "openclaw_non_json_response",
+                f"OpenClaw inference returned non-JSON output: {result.stdout}",
+            ) from exc
         return AssistantResult(
-            message=self._extract_response_text(data),
+            message=self._extract_infer_text(data),
             usage=self._extract_usage(data),
         )
 
-    def _request_json(
-        self,
-        method: str,
-        path: str,
-        payload: Optional[dict],
-        timeout: int,
-    ) -> dict:
-        url = self.gateway_url.rstrip("/") + path
-        body = json.dumps(payload).encode("utf-8") if payload is not None else None
-        headers = {"Content-Type": "application/json"}
+    def _stream_gateway_response(self, prompt: str) -> Iterator[Dict[str, object]]:
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+        }
         if self.gateway_token:
             headers["Authorization"] = f"Bearer {self.gateway_token}"
-        request = Request(url, data=body, headers=headers, method=method)
+
+        body = json.dumps(
+            {
+                "model": self.model,
+                "input": prompt,
+                "stream": True,
+            }
+        ).encode("utf-8")
+        url = self.gateway_url.rstrip("/") + "/v1/responses"
+        if debug_requests_enabled():
+            logger.info("GATEWAY OUT POST %s", url)
+            logger.info("GATEWAY OUT body=%s", _format_body(body))
+
+        request = Request(
+            url,
+            data=body,
+            headers=headers,
+            method="POST",
+        )
+
         try:
-            with urlopen(request, timeout=timeout) as response:
-                response_body = response.read().decode("utf-8")
-                try:
-                    return json.loads(response_body) if response_body else {}
-                except json.JSONDecodeError as exc:
-                    raise OpenClawError(
-                        "openclaw_non_json_response",
-                        (
-                            f"OpenClaw gateway returned non-JSON for {path}. "
-                            "This usually means the gateway served Control UI HTML "
-                            "instead of the OpenAI-compatible endpoint."
-                        ),
-                    ) from exc
+            with urlopen(request, timeout=180) as response:
+                if debug_requests_enabled():
+                    logger.info("GATEWAY IN  POST /v1/responses -> %s", response.status)
+                yield from self._iter_response_stream(response)
         except HTTPError as exc:
-            body_text = exc.read().decode("utf-8", errors="replace")
+            body = exc.read().decode("utf-8", errors="replace")
+            if debug_requests_enabled():
+                logger.info("GATEWAY IN  POST /v1/responses -> %s body=%s", exc.code, body)
             raise OpenClawError(
-                f"openclaw_http_{exc.code}",
-                f"OpenClaw gateway returned HTTP {exc.code}: {body_text}",
+                "openclaw_stream_failed",
+                body or f"OpenClaw stream failed with HTTP {exc.code}.",
             ) from exc
         except URLError as exc:
-            raise OpenClawError(
-                "openclaw_gateway_unavailable",
-                f"OpenClaw gateway is unavailable at {url}: {exc.reason}",
-            ) from exc
-        except TimeoutError as exc:
-            raise OpenClawError(
-                "openclaw_gateway_timeout",
-                f"OpenClaw gateway timed out while calling {path}.",
-            ) from exc
+            raise OpenClawError("openclaw_stream_failed", str(exc.reason)) from exc
+
+    def _iter_response_stream(self, response: object) -> Iterator[Dict[str, object]]:
+        usage: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0}
+        for raw_line in response:
+            line = raw_line.decode("utf-8", errors="replace").strip()
+            if not line or line.startswith(":"):
+                continue
+            if not line.startswith("data:"):
+                continue
+
+            if debug_requests_enabled():
+                logger.info("GATEWAY IN  stream=%s", line)
+
+            data_text = line.removeprefix("data:").strip()
+            if data_text == "[DONE]":
+                break
+
+            try:
+                data = json.loads(data_text)
+            except json.JSONDecodeError:
+                continue
+
+            delta = self._extract_stream_delta(data)
+            if delta:
+                yield {"type": "delta", "text": delta}
+
+            next_usage = self._extract_usage(data)
+            if next_usage["input_tokens"] or next_usage["output_tokens"]:
+                usage = next_usage
+
+        yield {"type": "done", "usage": usage}
+
+    def _extract_stream_delta(self, data: dict) -> str:
+        delta = data.get("delta")
+        if isinstance(delta, str):
+            return delta
+
+        if data.get("type") in {
+            "response.output_text.delta",
+            "response.refusal.delta",
+        }:
+            text = data.get("delta")
+            return text if isinstance(text, str) else ""
+
+        choices = data.get("choices")
+        if isinstance(choices, list) and choices:
+            choice = choices[0]
+            if isinstance(choice, dict):
+                choice_delta = choice.get("delta")
+                if isinstance(choice_delta, dict):
+                    content = choice_delta.get("content")
+                    return content if isinstance(content, str) else ""
+
+        return ""
 
     def _require_session(self, session_id: str) -> Dict[str, Optional[str]]:
         session = self._sessions.get(session_id)
@@ -391,17 +497,27 @@ class OpenClawClient:
             raise OpenClawError("openclaw_session_missing", "Unknown OpenClaw session.")
         return session
 
-    def _extract_response_text(self, data: dict) -> str:
-        if isinstance(data.get("output_text"), str):
-            return data["output_text"]
-        chunks = []
-        for output in data.get("output", []) or []:
-            for content in output.get("content", []) or []:
-                text = content.get("text")
-                if isinstance(text, str):
-                    chunks.append(text)
-        if chunks:
-            return "\n".join(chunks)
+    def _build_text_prompt(self, session: Dict[str, Optional[str]], message: str) -> str:
+        agent_instructions = session.get("agent_instructions") or (
+            "You are a WalkiTalki language tutor. Help the user practice language "
+            "through concise explanations and examples."
+        )
+        session_custom = session.get("custom_instructions")
+        custom_text = f"\nSession-only custom instructions: {session_custom}" if session_custom else ""
+        return (
+            f"{agent_instructions}"
+            f"{custom_text}\n\n"
+            "Product guardrails: do not claim to save flashcards, memory, progress, "
+            "vocabulary, images, or lesson history. Do not refer to image upload "
+            "features unless the user explicitly asks about future capabilities.\n\n"
+            f"User message: {message}"
+        )
+
+    def _extract_infer_text(self, data: dict) -> str:
+        outputs = data.get("outputs") or []
+        texts = [item.get("text") for item in outputs if isinstance(item.get("text"), str)]
+        if texts:
+            return "\n".join(texts)
         return json.dumps(data, indent=2)
 
     def _extract_usage(self, data: dict) -> Dict[str, int]:

@@ -48,6 +48,30 @@ textarea:disabled {
   padding: 32px 20px 48px;
 }
 
+.top-nav {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.top-nav button {
+  background: transparent;
+  color: #385245;
+  padding: 0.55rem 0.7rem;
+}
+
+.compact-hero {
+  align-items: center;
+}
+
+.hero-actions,
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .hero {
   align-items: stretch;
   display: grid;
@@ -152,22 +176,6 @@ dd {
   margin: 0;
 }
 
-.capabilities {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 16px 0 20px;
-}
-
-.capabilities span {
-  background: #e8efe8;
-  border-radius: 999px;
-  color: #24483b;
-  font-size: 0.78rem;
-  font-weight: 700;
-  padding: 6px 10px;
-}
-
 .field {
   display: grid;
   gap: 8px;
@@ -184,6 +192,12 @@ textarea {
   min-height: 112px;
   padding: 12px;
   resize: vertical;
+}
+
+.field input {
+  border: 1px solid #c9d1ca;
+  border-radius: 8px;
+  padding: 12px;
 }
 
 .agent-panel {
@@ -210,8 +224,102 @@ textarea {
   min-height: 660px;
 }
 
+.full-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.section-header,
+.chat-title-row {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.section-header h1,
+.chat-title-row h1,
+.form-panel h1 {
+  margin: 0;
+}
+
+.preview-panel,
+.form-panel {
+  min-height: auto;
+}
+
+.agent-list {
+  display: grid;
+  gap: 12px;
+}
+
+.agent-card {
+  border: 1px solid #e0e7df;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.agent-card h2,
+.agent-card p {
+  margin: 0;
+}
+
+.lede {
+  color: #4c5a4f;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.notice {
+  background: #eef1dd;
+  border: 1px solid #d9dfbd;
+  border-radius: 8px;
+  color: #4c562b;
+  padding: 12px 14px;
+}
+
+.chat-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.runtime-pill {
+  background: #e8efe8;
+  border-radius: 999px;
+  color: #24483b;
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 8px 12px;
+}
+
+.details-panel {
+  padding: 0;
+}
+
+.details-panel summary {
+  cursor: pointer;
+  font-weight: 800;
+  padding: 16px 18px;
+}
+
+.details-panel dl {
+  margin: 0;
+  padding: 0 18px 18px;
+}
+
+.runtime-start {
+  display: grid;
+  gap: 12px;
+}
+
+.product-chat-panel {
+  min-height: 520px;
+}
+
 .chat-header,
-.upload-row,
 .composer {
   align-items: center;
   display: flex;
@@ -225,18 +333,10 @@ textarea {
 }
 
 .chat-header button,
-.upload-row button,
 .composer button {
   background: #1e3128;
   color: white;
   flex: 0 0 auto;
-}
-
-.upload-row {
-  border-bottom: 1px solid #e1e5df;
-  border-top: 1px solid #e1e5df;
-  margin: 18px 0;
-  padding: 14px 0;
 }
 
 .messages {
@@ -317,14 +417,16 @@ textarea {
   }
 
   .chat-header,
-  .upload-row,
-  .composer {
+  .composer,
+  .section-header,
+  .chat-title-row,
+  .button-row,
+  .hero-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
   .chat-header button,
-  .upload-row button,
   .composer button,
   .link-button {
     width: 100%;

@@ -105,6 +105,35 @@ class ErrorResponse(BaseModel):
     retryable: bool = False
 
 
+class AgentCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    target_language: str = Field(min_length=1, max_length=80)
+    native_language: Optional[str] = Field(default=None, max_length=80)
+    custom_instructions: Optional[str] = Field(default=None, max_length=1000)
+
+
+class AgentRead(BaseModel):
+    id: str
+    name: str
+    description: str
+    target_language: str
+    native_language: Optional[str] = None
+    custom_instructions: Optional[str] = None
+    status: str
+    share_slug: Optional[str] = None
+
+
+class AgentListResponse(BaseModel):
+    agents: List[AgentRead]
+
+
+class AgentPublishResponse(BaseModel):
+    id: str
+    status: str
+    share_slug: str
+    share_url: str
+
+
 class SessionRecordLike:
     browser_session_id: str
     openclaw_session_id: str

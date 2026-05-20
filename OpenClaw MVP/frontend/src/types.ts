@@ -27,6 +27,35 @@ export type ChatMessage = {
   content: string;
 };
 
+export type AgentFormValues = {
+  name: string;
+  target_language: string;
+  native_language: string;
+  custom_instructions: string;
+};
+
+export type ProductAgent = {
+  id: string;
+  name: string;
+  description: string;
+  target_language: string;
+  native_language?: string | null;
+  custom_instructions?: string | null;
+  status: 'draft' | 'published';
+  share_slug?: string | null;
+};
+
+export type AgentListResponse = {
+  agents: ProductAgent[];
+};
+
+export type PublishResponse = {
+  id: string;
+  status: 'published';
+  share_slug: string;
+  share_url: string;
+};
+
 export type ChatResponse = {
   message: string;
   runtime_status: string;
@@ -34,9 +63,20 @@ export type ChatResponse = {
   usage?: Record<string, number> | null;
 };
 
-export type ImageLessonResponse = ChatResponse & {
-  image_upload_status: string;
-};
+export type ChatStreamEvent =
+  | {
+      type: 'delta';
+      text: string;
+    }
+  | {
+      type: 'done';
+      usage?: Record<string, number> | null;
+    }
+  | {
+      type: 'error';
+      code?: string;
+      message: string;
+    };
 
 export type SkillValidationResponse = {
   message: string;
