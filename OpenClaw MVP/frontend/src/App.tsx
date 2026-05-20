@@ -48,18 +48,25 @@ function appendAssistantDelta(setMessages: Dispatch<SetStateAction<ChatMessage[]
 }
 
 function scrollLatestAssistantToTop() {
-  window.requestAnimationFrame(() => {
+  window.setTimeout(() => {
     const assistants = document.querySelectorAll<HTMLElement>('.message.assistant');
     const latest = assistants[assistants.length - 1];
-    latest?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+    const container = latest?.closest<HTMLElement>('.messages');
+    if (!latest || !container) return;
+
+    const containerTop = container.getBoundingClientRect().top;
+    const latestTop = latest.getBoundingClientRect().top;
+    container.scrollTo({
+      top: container.scrollTop + latestTop - containerTop,
+      behavior: 'smooth',
+    });
+  }, 220);
 }
 
 function MessageBody({ message }: { message: ChatMessage }) {
   if (message.role === 'assistant' && !message.content) {
     return (
-      <div>
-        <br/>
+      <div className="message-body">
         <div className="thinking-line" aria-live="polite">
           <span className="spinner" aria-hidden="true" />
           <span>Thinking...</span>
@@ -68,7 +75,11 @@ function MessageBody({ message }: { message: ChatMessage }) {
     );
   }
 
-  return <Markdown text={message.content} />;
+  return (
+    <div className="message-body">
+      <Markdown text={message.content} />
+    </div>
+  );
 }
 
 type Route =
@@ -333,7 +344,6 @@ function AgentLandingPage({ navigate, shareSlug }: { navigate: (path: string) =>
 
 function AgentChatPage({ shareSlug }: { shareSlug: string }) {
   const [agent, setAgent] = useState<ProductAgent | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [sessionInstructions, setSessionInstructions] = useState('');
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(() => readCachedAuthStatus());
   const [session, setSession] = useState<SessionRead | null>(null);
@@ -463,22 +473,18 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
           <p className="eyebrow">Text Chat</p>
           <h1>{agent?.name ?? 'Loading agent'}</h1>
         </div>
-        <div className="runtime-pill">{statusLabel}</div>
-      </div>
-
-      {error && <div className="error-banner">{error}</div>}
-
-      <details className="panel details-panel" open={detailsOpen} onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
-        <summary>Agent details</summary>
-        <dl>
+        <dl className="agent-details-inline">
           <dt>Target</dt>
           <dd>{agent?.target_language ?? '...'}</dd>
           <dt>Native</dt>
           <dd>{agent?.native_language || 'Not specified'}</dd>
-          <dt>Published instructions</dt>
+          <dt>Instructions</dt>
           <dd>{agent?.custom_instructions || 'No custom instructions.'}</dd>
         </dl>
-      </details>
+        <div className="runtime-pill">{statusLabel}</div>
+      </div>
+
+      {error && <div className="error-banner">{error}</div>}
 
       {!isAuthenticated && (
         <section className="panel runtime-start">
@@ -521,12 +527,15 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
               {isAuthenticated ? 'Start the OpenClaw session to begin with a lesson.' : 'Log in first to unlock agent chat.'}
             </div>
           ) : (
-            messages.map((message, index) => (
-              <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
-                <span>{message.role}</span>
-                <MessageBody message={message} />
-              </article>
-            ))
+            <>
+              {messages.map((message, index) => (
+                <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
+                  <span>{message.role}</span>
+                  <MessageBody message={message} />
+                </article>
+              ))}
+              <div className="message-scroll-spacer" aria-hidden="true" />
+            </>
           )}
         </div>
 
@@ -753,6 +762,7 @@ function ValidationPage() {
                 <MessageBody message={message} />
               </article>
             ))}
+            {messages.length > 0 && <div className="message-scroll-spacer" aria-hidden="true" />}
           </div>
           <form className="composer" onSubmit={handleChatSubmit}>
             <input
