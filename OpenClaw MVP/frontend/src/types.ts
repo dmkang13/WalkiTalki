@@ -22,6 +22,14 @@ export type SessionRead = {
   skill_status: string;
 };
 
+export type AuthStatus = {
+  provider_status: string;
+  login_url?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  diagnostic?: string | null;
+};
+
 export type ChatMessage = {
   role: 'user' | 'assistant' | 'system';
   content: string;

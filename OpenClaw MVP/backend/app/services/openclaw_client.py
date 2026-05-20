@@ -87,6 +87,17 @@ class OpenClawClient:
         agent: ExampleAgent,
         custom_instructions: Optional[str],
     ) -> RuntimeSessionResult:
+        self._ensure_cli_available()
+        self._ensure_workspace()
+        self._ensure_gateway_running()
+
+        auth_status = self._probe_provider_auth(ignore_running_login=True)
+        if not auth_status["connected"]:
+            raise OpenClawError(
+                "provider_login_required",
+                "Sign in to ChatGPT through OpenClaw before starting an agent chat session.",
+            )
+
         session_id = "oc_" + uuid4().hex[:16]
         self._sessions[session_id] = {
             "agent_id": agent.agent_id,
@@ -96,32 +107,14 @@ class OpenClawClient:
             "native_language": agent.native_language,
             "custom_instructions": custom_instructions,
         }
-
-        self._ensure_cli_available()
-        self._ensure_workspace()
-        self._ensure_gateway_running()
-
-        auth_status = self._probe_provider_auth(ignore_running_login=True)
-        if auth_status["connected"]:
-            return RuntimeSessionResult(
-                openclaw_session_id=session_id,
-                runtime_status="ready",
-                provider_status="connected",
-                login_url=None,
-                model=self.model,
-                provider=f"ChatGPT/OpenAI via {self.provider}",
-                diagnostic=auth_status.get("diagnostic"),
-            )
-
-        login_result = self._start_provider_login()
         return RuntimeSessionResult(
             openclaw_session_id=session_id,
-            runtime_status="login_required",
-            provider_status="login_required",
-            login_url=login_result.get("login_url"),
-            model=None,
+            runtime_status="ready",
+            provider_status="connected",
+            login_url=None,
+            model=self.model,
             provider=f"ChatGPT/OpenAI via {self.provider}",
-            diagnostic=login_result.get("diagnostic"),
+            diagnostic=auth_status.get("diagnostic"),
         )
 
     def confirm_login(self, session_id: str) -> RuntimeSessionResult:
@@ -160,12 +153,47 @@ class OpenClawClient:
         session = self._require_session(session_id)
         self._ensure_gateway_running()
         prompt = self._build_text_prompt(session, message)
+        if not self._use_gateway_streams():
+            result = self._infer_model_run(prompt=prompt)
+            yield {"type": "delta", "text": result.message}
+            yield {"type": "done", "usage": result.usage}
+            return
+
         try:
             yield from self._stream_gateway_response(prompt)
         except OpenClawError:
             raise
         except Exception as exc:
             raise OpenClawError("openclaw_stream_failed", str(exc)) from exc
+
+    def begin_provider_login(self) -> RuntimeSessionResult:
+        self._ensure_cli_available()
+        self._ensure_workspace()
+        login_result = self._start_provider_login()
+        return RuntimeSessionResult(
+            openclaw_session_id="",
+            runtime_status="login_required",
+            provider_status="login_required",
+            login_url=login_result.get("login_url"),
+            model=None,
+            provider=f"ChatGPT/OpenAI via {self.provider}",
+            diagnostic=login_result.get("diagnostic"),
+        )
+
+    def provider_auth_status(self) -> RuntimeSessionResult:
+        self._ensure_cli_available()
+        self._ensure_workspace()
+        auth_status = self._probe_provider_auth(ignore_running_login=False)
+        connected = bool(auth_status["connected"])
+        return RuntimeSessionResult(
+            openclaw_session_id="",
+            runtime_status="ready" if connected else "login_required",
+            provider_status="connected" if connected else "login_required",
+            login_url=None if connected else auth_status.get("login_url"),
+            model=self.model if connected else None,
+            provider=f"ChatGPT/OpenAI via {self.provider}",
+            diagnostic=auth_status.get("diagnostic"),
+        )
 
     def send_image_lesson(
         self,
@@ -276,6 +304,9 @@ class OpenClawClient:
             "openclaw_gateway_timeout",
             "OpenClaw gateway did not become ready within 12 seconds.",
         )
+
+    def _use_gateway_streams(self) -> bool:
+        return os.getenv("OPENCLAW_USE_GATEWAY_STREAMS", "").lower() in {"1", "true", "yes", "on"}
 
     def _gateway_responds(self) -> bool:
         try:

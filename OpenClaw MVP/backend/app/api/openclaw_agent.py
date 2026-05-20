@@ -11,6 +11,7 @@ from app.schemas.openclaw import (
     AgentPublishResponse,
     AgentRead,
     AgentSummary,
+    AuthStatusRead,
     ChatRequest,
     ChatResponse,
     ErrorResponse,
@@ -45,9 +46,41 @@ def get_browser_session_id(response: Response, existing: Optional[str]) -> str:
     return session_id
 
 
+def auth_status_read(runtime) -> AuthStatusRead:
+    return AuthStatusRead(
+        provider_status=runtime.provider_status,
+        login_url=runtime.login_url,
+        provider=runtime.provider,
+        model=runtime.model,
+        diagnostic=runtime.diagnostic,
+    )
+
+
 @router.get("/agent", response_model=AgentSummary)
 def read_agent() -> AgentSummary:
     return AgentSummary.from_agent(get_example_agent())
+
+
+@router.get("/auth/status", response_model=AuthStatusRead)
+def read_auth_status() -> AuthStatusRead:
+    try:
+        runtime = openclaw_client.provider_auth_status()
+    except OpenClawError as exc:
+        raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
+    return auth_status_read(runtime)
+
+
+@router.post("/auth/login", response_model=AuthStatusRead)
+def start_auth_login(
+    response: Response,
+    browser_session_id: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE),
+) -> AuthStatusRead:
+    get_browser_session_id(response, browser_session_id)
+    try:
+        runtime = openclaw_client.begin_provider_login()
+    except OpenClawError as exc:
+        raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
+    return auth_status_read(runtime)
 
 
 @router.post("/agents", response_model=AgentRead)
@@ -105,7 +138,8 @@ def start_session(
     try:
         runtime = openclaw_client.create_session(agent, payload.custom_instructions)
     except OpenClawError as exc:
-        raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
+        status_code = 409 if exc.code == "provider_login_required" else 503
+        raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from exc
     record = session_store.start_session(
         browser_session_id=browser_id,
         agent_id=agent.agent_id,
@@ -133,7 +167,8 @@ def start_agent_session(
     try:
         runtime = openclaw_client.create_session(agent, payload.custom_instructions)
     except OpenClawError as exc:
-        raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
+        status_code = 409 if exc.code == "provider_login_required" else 503
+        raise HTTPException(status_code=status_code, detail={"code": exc.code, "message": exc.message}) from exc
     record = session_store.start_session(
         browser_session_id=browser_id,
         agent_id=agent.agent_id,
@@ -157,6 +192,42 @@ def confirm_login(
     record = session_store.require_session(browser_id)
     try:
         runtime = openclaw_client.confirm_login(record.openclaw_session_id)
+    except OpenClawError as exc:
+        raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
+    updated = session_store.update_runtime(
+        browser_id,
+        runtime_status=runtime.runtime_status,
+        provider_status=runtime.provider_status,
+        login_url=runtime.login_url,
+        model=runtime.model,
+        provider=runtime.provider,
+    )
+    return SessionRead.from_record(updated)
+
+
+@router.post("/session/provider-login", response_model=SessionRead)
+def start_provider_login(
+    response: Response,
+    browser_session_id: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE),
+) -> SessionRead:
+    browser_id = get_browser_session_id(response, browser_session_id)
+    try:
+        record = session_store.require_session(browser_id)
+    except HTTPException:
+        agent = get_example_agent()
+        record = session_store.start_session(
+            browser_session_id=browser_id,
+            agent_id=agent.agent_id,
+            openclaw_session_id="",
+            custom_instructions=None,
+            runtime_status="login_required",
+            provider_status="login_required",
+            login_url=None,
+            model=None,
+            provider=None,
+        )
+    try:
+        runtime = openclaw_client.begin_provider_login()
     except OpenClawError as exc:
         raise HTTPException(status_code=503, detail={"code": exc.code, "message": exc.message}) from exc
     updated = session_store.update_runtime(
@@ -239,8 +310,12 @@ def stream_agent_chat(
     record = session_store.require_ready_session(browser_id)
 
     def events() -> Iterator[str]:
+        chunks: list[str] = []
         try:
             for event in openclaw_client.stream_text(record.openclaw_session_id, payload.message):
+                if event.get("type") == "delta":
+                    text = str(event.get("text") or "")
+                    chunks.append(text)
                 yield json.dumps(event) + "\n"
         except OpenClawError as exc:
             yield json.dumps(
@@ -250,6 +325,12 @@ def stream_agent_chat(
                     "message": exc.message,
                 }
             ) + "\n"
+            return
+
+        assistant_message = "".join(chunks)
+        if assistant_message:
+            session_store.append_message(browser_id, "user", payload.message)
+            session_store.append_message(browser_id, "assistant", assistant_message)
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
 

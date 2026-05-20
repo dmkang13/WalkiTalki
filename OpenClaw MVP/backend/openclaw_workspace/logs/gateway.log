@@ -259,3 +259,154 @@ Pregunta de práctica:
 2026-05-19T21:58:00.416-05:00 [heartbeat] started
 2026-05-19T21:58:01.377-05:00 [plugins] bonjour: advertised gateway fqdn=Dale’s MacBook Air (OpenClaw)._openclaw-gw._tcp.local. host=Dales-MacBook-Air.local. port=18789 state=announcing
 2026-05-19T21:58:02.087-05:00 [gateway] update available (latest): v2026.5.18 (current v2026.5.12). Run: openclaw update
+2026-05-19T22:03:25.687-05:00 [gateway] signal SIGINT received
+2026-05-19T22:03:25.691-05:00 [gateway] received SIGINT; shutting down
+2026-05-19T22:03:25.739-05:00 [shutdown] started: gateway stopping
+2026-05-19T22:03:25.793-05:00 [gmail-watcher] gmail watcher stopped
+2026-05-19T22:03:25.798-05:00 [shutdown] completed cleanly in 59ms
+2026-05-19T22:17:16.615-05:00 [gateway] loading configuration…
+2026-05-19T22:17:16.633-05:00 [gateway] resolving authentication…
+2026-05-19T22:17:16.639-05:00 [gateway] auth mode=none explicitly configured; all gateway connections are unauthenticated.
+2026-05-19T22:17:16.640-05:00 [gateway] starting...
+2026-05-19T22:17:17.997-05:00 [gateway] auto-enabled plugins for this runtime without writing config:
+- openai-codex/gpt-5.4 model configured, enabled automatically.
+- codex agent runtime configured, enabled automatically.
+2026-05-19T22:17:18.374-05:00 [gateway] starting HTTP server...
+2026-05-19T22:17:18.399-05:00 [health-monitor] started (interval: 300s, startup-grace: 60s, channel-connect-grace: 120s)
+2026-05-19T22:17:18.442-05:00 [plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: codex (/Users/dkang/.openclaw/npm/node_modules/@openclaw/codex/dist/index.js). Set plugins.allow to explicit trusted ids.
+2026-05-19T22:17:20.082-05:00 [gateway] agent model: openai-codex/gpt-5.4 (thinking=medium, fast=off)
+2026-05-19T22:17:20.083-05:00 [gateway] http server listening (9 plugins: bonjour, browser, canvas, codex, device-pair, file-transfer, memory-core, phone-control, talk-voice; 3.4s)
+2026-05-19T22:17:20.084-05:00 [gateway] log file: /tmp/openclaw/openclaw-2026-05-19.log
+2026-05-19T22:17:20.112-05:00 [gateway] starting channels and sidecars...
+2026-05-19T22:17:20.255-05:00 [browser/server] Browser control listening on http://127.0.0.1:18791/ (auth=token)
+2026-05-19T22:17:20.274-05:00 [gateway] ready
+2026-05-19T22:17:20.279-05:00 [heartbeat] started
+2026-05-19T22:17:21.133-05:00 [plugins] bonjour: advertised gateway fqdn=Dale’s MacBook Air (OpenClaw)._openclaw-gw._tcp.local. host=Dales-MacBook-Air.local. port=18789 state=announcing
+2026-05-19T22:22:54.176-05:00 [ws] ⇄ res ✓ agent 180ms runId=adb7efaa-115b-45af-a6f8-734f121b3110 conn=067cc68a…91d7 id=ef16332f…38c3
+2026-05-19T22:22:54.811-05:00 [plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: codex (/Users/dkang/.openclaw/npm/node_modules/@openclaw/codex/dist/index.js). Set plugins.allow to explicit trusted ids.
+2026-05-19T22:23:06.302-05:00 Sure. Let’s do Korean practice simply.
+
+Send me one of these:
+1. An English sentence you want in Korean
+2. A Korean phrase you want explained
+3. A situation, like “ordering coffee” or “meeting a friend”
+
+Example:
+“I’m a little tired, but I’m okay.”
+
+I’d give:
+`좀 피곤하지만 괜찮아요.`
+- `좀` = a little
+- `피곤하다` = to be tired
+- `-지만` = but
+- `괜찮아요` = I’m okay / It’s okay
+
+Your turn.
+2026-05-19T22:23:38.472-05:00 [plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: codex (/Users/dkang/.openclaw/npm/node_modules/@openclaw/codex/dist/index.js). Set plugins.allow to explicit trusted ids.
+2026-05-19T22:26:23.786-05:00 [gateway] signal SIGINT received
+2026-05-19T22:26:23.790-05:00 [gateway] received SIGINT; shutting down
+2026-05-19T22:26:23.811-05:00 [shutdown] started: gateway stopping
+2026-05-19T22:26:23.849-05:00 [gmail-watcher] gmail watcher stopped
+2026-05-19T22:26:23.850-05:00 [shutdown] completed cleanly in 40ms
+2026-05-19T22:49:59.095-05:00 [gateway] loading configuration…
+2026-05-19T22:49:59.112-05:00 [gateway] resolving authentication…
+2026-05-19T22:49:59.117-05:00 [gateway] auth mode=none explicitly configured; all gateway connections are unauthenticated.
+2026-05-19T22:49:59.118-05:00 [gateway] starting...
+2026-05-19T22:50:00.302-05:00 [gateway] auto-enabled plugins for this runtime without writing config:
+- openai-codex/gpt-5.4 model configured, enabled automatically.
+- codex agent runtime configured, enabled automatically.
+2026-05-19T22:50:00.628-05:00 [gateway] starting HTTP server...
+2026-05-19T22:50:00.653-05:00 [health-monitor] started (interval: 300s, startup-grace: 60s, channel-connect-grace: 120s)
+2026-05-19T22:50:00.692-05:00 [plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: codex (/Users/dkang/.openclaw/npm/node_modules/@openclaw/codex/dist/index.js). Set plugins.allow to explicit trusted ids.
+2026-05-19T22:50:02.185-05:00 [gateway] agent model: openai-codex/gpt-5.4 (thinking=medium, fast=off)
+2026-05-19T22:50:02.185-05:00 [gateway] http server listening (9 plugins: bonjour, browser, canvas, codex, device-pair, file-transfer, memory-core, phone-control, talk-voice; 3.1s)
+2026-05-19T22:50:02.186-05:00 [gateway] log file: /tmp/openclaw/openclaw-2026-05-19.log
+2026-05-19T22:50:02.210-05:00 [gateway] starting channels and sidecars...
+2026-05-19T22:50:02.345-05:00 [browser/server] Browser control listening on http://127.0.0.1:18791/ (auth=token)
+2026-05-19T22:50:02.363-05:00 [gateway] ready
+2026-05-19T22:50:02.367-05:00 [heartbeat] started
+2026-05-19T22:50:03.204-05:00 [plugins] bonjour: advertised gateway fqdn=Dale’s MacBook Air (OpenClaw)._openclaw-gw._tcp.local. host=Dales-MacBook-Air.local. port=18789 state=announcing
+2026-05-19T22:50:49.029-05:00 [ws] ⇄ res ✓ agent 153ms runId=080f408f-dfb0-4f88-970c-12e9d310902b conn=4da5f221…e146 id=7bec0399…fe9c
+2026-05-19T22:50:49.572-05:00 [plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: codex (/Users/dkang/.openclaw/npm/node_modules/@openclaw/codex/dist/index.js). Set plugins.allow to explicit trusted ids.
+2026-05-19T22:51:01.802-05:00 I don’t see an image yet.
+
+Send the photo, and I’ll do this in Korean:
+- identify the visible objects
+- give the most useful words
+- add a few practical phrases you can actually say
+
+Example output:
+- `컵` = cup
+- `책상` = desk
+- `의자` = chair
+- `컵이 있어요.` = There is a cup.
+- `책상 위에 컵이 있어요.` = There is a cup on the desk.
+2026-05-19T22:53:37.216-05:00 [plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: codex (/Users/dkang/.openclaw/npm/node_modules/@openclaw/codex/dist/index.js). Set plugins.allow to explicit trusted ids.
+2026-05-19T22:57:31.119-05:00 `컵에 물이 있어요.` = There is water in the cup.
+
+- `컵` = cup
+- `물` = water
+- `-에` = in / at
+- `있어요` = there is / has
+
+Another useful one:
+`컵 주세요.` = Please give me a cup.
+
+If you want, I can give 5 more natural `cup` sentences for home, cafe, or restaurant situations.
+2026-05-19T22:57:57.386-05:00 Here are 5 natural Korean sentences with `컵`:
+
+1. `컵에 물이 있어요.`  
+   = There is water in the cup.
+
+2. `컵 좀 주세요.`  
+   = Please give me a cup.  
+   - `좀` makes it softer and more natural.
+
+3. `이 컵은 너무 작아요.`  
+   = This cup is too small.
+
+4. `컵을 테이블 위에 놓았어요.`  
+   = I put the cup on the table.
+
+5. `저는 큰 컵이 필요해요.`  
+   = I need a big cup.
+
+Useful pattern:
+`[noun]이/가 필요해요` = I need [noun]  
+Example: `컵이 필요해요.` = I need a cup.
+
+If you want, I can give 5 easier ones or 5 cafe-style ones next.
+2026-05-19T22:58:42.555-05:00 **Vocabulary**
+
+Formatting note: this structure came from the allowlisted `validation` skill.
+
+- `컵` = cup
+- `물` = water
+- `큰` = big
+- `작은` = small
+- `테이블` = table
+- `위` = top / above
+- `필요해요` = need
+- `주세요` = please give me
+
+**Practical Phrases**
+
+- `컵에 물이 있어요.` = There is water in the cup.
+- `컵 좀 주세요.` = Please give me a cup.
+- `이 컵은 커요.` = This cup is big.
+- `이 컵은 작아요.` = This cup is small.
+- `컵이 필요해요.` = I need a cup.
+- `컵을 테이블 위에 놓았어요.` = I put the cup on the table.
+
+**Practice**
+
+Try saying these in Korean:
+
+1. Please give me a cup.
+2. There is water in the cup.
+3. I need a big cup.
+
+Answers:
+1. `컵 좀 주세요.`
+2. `컵에 물이 있어요.`
+3. `큰 컵이 필요해요.`

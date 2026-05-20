@@ -1,19 +1,20 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
-  confirmLogin,
   createAgent,
   getAgent,
+  getAuthStatus,
   getSharedAgent,
   listAgents,
   publishAgent,
   resetSession,
   sendChatStream,
+  startAuthLogin,
   startAgentSession,
   startSession,
   validateSkill,
 } from './api';
 import { Markdown } from './Markdown';
-import type { AgentFormValues, AgentSummary, ChatMessage, ProductAgent, SessionRead } from './types';
+import type { AgentFormValues, AgentSummary, AuthStatus, ChatMessage, ProductAgent, SessionRead } from './types';
 
 type RuntimeState = 'idle' | 'loading' | 'starting' | 'login_required' | 'ready' | 'sending' | 'error';
 type Route =
@@ -280,6 +281,7 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
   const [agent, setAgent] = useState<ProductAgent | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [sessionInstructions, setSessionInstructions] = useState('');
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [session, setSession] = useState<SessionRead | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -292,8 +294,19 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
       .catch((err: Error) => setError(err.message));
   }, [shareSlug]);
 
+  useEffect(() => {
+    getAuthStatus()
+      .then(setAuthStatus)
+      .catch((err: Error) => setError(err.message));
+  }, []);
+
+  const isAuthenticated = authStatus?.provider_status === 'connected';
   const canChat = session?.runtime_status === 'ready' && session.provider_status === 'connected';
-  const statusLabel = session ? `${session.runtime_status} / ${session.provider_status}` : 'No runtime session';
+  const statusLabel = session
+    ? `${session.runtime_status} / ${session.provider_status}`
+    : isAuthenticated
+      ? 'OpenClaw authenticated'
+      : 'ChatGPT login required';
 
   async function handleStartSession() {
     setRuntimeState('starting');
@@ -312,11 +325,24 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
     setRuntimeState('starting');
     setError(null);
     try {
-      const next = await confirmLogin();
-      setSession(next);
-      setRuntimeState(next.provider_status === 'login_required' ? 'login_required' : 'ready');
+      const next = await getAuthStatus();
+      setAuthStatus(next);
+      setRuntimeState(next.provider_status === 'connected' ? 'idle' : 'login_required');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not confirm login.');
+      setRuntimeState('error');
+    }
+  }
+
+  async function handleProviderLogin() {
+    setRuntimeState('starting');
+    setError(null);
+    try {
+      const next = await startAuthLogin();
+      setAuthStatus(next);
+      setRuntimeState('login_required');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start provider login.');
       setRuntimeState('error');
     }
   }
@@ -381,7 +407,26 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
         </dl>
       </details>
 
-      {!session && (
+      {!isAuthenticated && (
+        <section className="panel runtime-start">
+          <div className="notice">Sign in to ChatGPT through OpenClaw before starting this agent chat.</div>
+          <div className="button-row">
+            <button className="primary" onClick={handleProviderLogin} disabled={runtimeState === 'starting'}>
+              Open ChatGPT Login
+            </button>
+            <button className="secondary" onClick={handleConfirmLogin} disabled={runtimeState === 'starting'}>
+              I Completed Login
+            </button>
+          </div>
+          {authStatus?.login_url && (
+            <a className="secondary link-button" href={authStatus.login_url} target="_blank" rel="noreferrer">
+              Continue OAuth
+            </a>
+          )}
+        </section>
+      )}
+
+      {isAuthenticated && !session && (
         <section className="panel runtime-start">
           <label className="field">
             <span>Session-only custom instructions</span>
@@ -398,21 +443,12 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
         </section>
       )}
 
-      {session?.login_url && (
-        <div className="button-row">
-          <a className="secondary link-button" href={session.login_url} target="_blank" rel="noreferrer">
-            Open Provider Login
-          </a>
-          <button className="primary" onClick={handleConfirmLogin}>
-            I Completed Login
-          </button>
-        </div>
-      )}
-
       <section className="panel chat-panel product-chat-panel">
         <div className="messages">
           {messages.length === 0 ? (
-            <div className="empty-state">Start the OpenClaw session, then ask the agent a text question.</div>
+            <div className="empty-state">
+              {isAuthenticated ? 'Start the OpenClaw session, then ask the agent a text question.' : 'Log in first to unlock agent chat.'}
+            </div>
           ) : (
             messages.map((message, index) => (
               <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
@@ -445,6 +481,7 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
 
 function ValidationPage() {
   const [agent, setAgent] = useState<AgentSummary | null>(null);
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [session, setSession] = useState<SessionRead | null>(null);
   const [runtimeState, setRuntimeState] = useState<RuntimeState>('loading');
   const [customInstructions, setCustomInstructions] = useState('');
@@ -465,13 +502,20 @@ function ValidationPage() {
       });
   }, []);
 
+  useEffect(() => {
+    getAuthStatus()
+      .then(setAuthStatus)
+      .catch((err: Error) => setError(err.message));
+  }, []);
+
+  const isAuthenticated = authStatus?.provider_status === 'connected';
   const canUseRuntime = session?.runtime_status === 'ready' && session.provider_status === 'connected';
   const customInstructionsLocked = Boolean(session);
 
   const statusLabel = useMemo(() => {
-    if (!session) return 'No runtime session';
+    if (!session) return isAuthenticated ? 'OpenClaw authenticated' : 'ChatGPT login required';
     return `${session.runtime_status} / ${session.provider_status}`;
-  }, [session]);
+  }, [isAuthenticated, session]);
 
   async function handleStartSession() {
     setError(null);
@@ -490,11 +534,24 @@ function ValidationPage() {
     setError(null);
     setRuntimeState('starting');
     try {
-      const next = await confirmLogin();
-      setSession(next);
-      setRuntimeState(next.provider_status === 'login_required' ? 'login_required' : 'ready');
+      const next = await getAuthStatus();
+      setAuthStatus(next);
+      setRuntimeState(next.provider_status === 'connected' ? 'idle' : 'login_required');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not confirm login.');
+      setRuntimeState('error');
+    }
+  }
+
+  async function handleProviderLogin() {
+    setError(null);
+    setRuntimeState('starting');
+    try {
+      const next = await startAuthLogin();
+      setAuthStatus(next);
+      setRuntimeState('login_required');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start provider login.');
       setRuntimeState('error');
     }
   }
@@ -502,7 +559,7 @@ function ValidationPage() {
   async function handleChatSubmit(event: FormEvent) {
     event.preventDefault();
     const message = chatInput.trim();
-    if (!message) return;
+    if (!message || !canUseRuntime) return;
     setChatInput('');
     setError(null);
     setRuntimeState('sending');
@@ -584,17 +641,25 @@ function ValidationPage() {
               placeholder="Example: Make the lesson suitable for a beginner."
             />
           </label>
-          <button className="primary" onClick={handleStartSession} disabled={runtimeState === 'starting'}>
-            Start Chat
-          </button>
-          {session?.login_url && (
-            <a className="secondary link-button" href={session.login_url} target="_blank" rel="noreferrer">
-              Open Provider Login
-            </a>
+          {!isAuthenticated && (
+            <>
+              <div className="notice">Sign in to ChatGPT through OpenClaw before starting chat.</div>
+              <button className="primary" onClick={handleProviderLogin} disabled={runtimeState === 'starting'}>
+                Open ChatGPT Login
+              </button>
+              {authStatus?.login_url && (
+                <a className="secondary link-button" href={authStatus.login_url} target="_blank" rel="noreferrer">
+                  Continue OAuth
+                </a>
+              )}
+              <button className="secondary" onClick={handleConfirmLogin} disabled={runtimeState === 'starting'}>
+                I completed login
+              </button>
+            </>
           )}
-          {runtimeState === 'login_required' && (
-            <button className="secondary" onClick={handleConfirmLogin}>
-              I completed login
+          {isAuthenticated && !session && (
+            <button className="primary" onClick={handleStartSession} disabled={runtimeState === 'starting'}>
+              Start Chat
             </button>
           )}
           <button className="ghost" onClick={handleReset}>
@@ -614,7 +679,11 @@ function ValidationPage() {
           </div>
           {skillEvidence && <div className="skill-evidence">{skillEvidence}</div>}
           <div className="messages">
-            {messages.length === 0 && <div className="empty-state">Start a session, confirm login, and send text.</div>}
+            {messages.length === 0 && (
+              <div className="empty-state">
+                {isAuthenticated ? 'Start a session, then send text.' : 'Log in first to unlock chat.'}
+              </div>
+            )}
             {messages.map((message, index) => (
               <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
                 <span>{message.role}</span>

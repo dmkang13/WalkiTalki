@@ -44,6 +44,14 @@ class SessionStartRequest(BaseModel):
     custom_instructions: Optional[str] = Field(default=None, max_length=2000)
 
 
+class AuthStatusRead(BaseModel):
+    provider_status: str
+    login_url: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    diagnostic: Optional[str] = None
+
+
 class SessionRead(BaseModel):
     local_session_id: str
     openclaw_session_id: str

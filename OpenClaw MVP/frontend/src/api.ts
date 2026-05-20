@@ -1,5 +1,6 @@
 import type {
   AgentSummary,
+  AuthStatus,
   AgentFormValues,
   AgentListResponse,
   ChatResponse,
@@ -51,6 +52,17 @@ export function getAgent(): Promise<AgentSummary> {
   return requestJson<AgentSummary>('/api/openclaw/agent');
 }
 
+export function getAuthStatus(): Promise<AuthStatus> {
+  return requestJson<AuthStatus>('/api/openclaw/auth/status');
+}
+
+export function startAuthLogin(): Promise<AuthStatus> {
+  return requestJson<AuthStatus>('/api/openclaw/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export function createAgent(values: AgentFormValues): Promise<ProductAgent> {
   return requestJson<ProductAgent>('/api/openclaw/agents', {
     method: 'POST',
@@ -98,6 +110,13 @@ export function startAgentSession(shareSlug: string, customInstructions: string)
 
 export function confirmLogin(): Promise<SessionRead> {
   return requestJson<SessionRead>('/api/openclaw/session/confirm-login', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export function startProviderLogin(): Promise<SessionRead> {
+  return requestJson<SessionRead>('/api/openclaw/session/provider-login', {
     method: 'POST',
     body: JSON.stringify({}),
   });
