@@ -81,6 +81,8 @@ class OpenClawClient:
         self._login_process: Optional[subprocess.Popen[str]] = None
         self._login_master_fd: Optional[int] = None
         self._sessions: Dict[str, Dict[str, Optional[str]]] = {}
+        self._auth_cache: Optional[Dict[str, Optional[str]]] = None
+        self._auth_cache_at = 0.0
 
     def create_session(
         self,
@@ -151,8 +153,16 @@ class OpenClawClient:
 
     def stream_text(self, session_id: str, message: str) -> Iterator[Dict[str, object]]:
         session = self._require_session(session_id)
-        self._ensure_gateway_running()
         prompt = self._build_text_prompt(session, message)
+        if self._use_direct_codex_streams():
+            try:
+                yield from self._stream_direct_codex_response(session_id, prompt)
+                return
+            except OpenClawError as exc:
+                if debug_requests_enabled():
+                    logger.info("CODEX DIRECT fallback code=%s message=%s", exc.code, exc.message)
+
+        self._ensure_gateway_running()
         if not self._use_gateway_streams():
             result = self._infer_model_run(prompt=prompt)
             yield {"type": "delta", "text": result.message}
@@ -183,7 +193,7 @@ class OpenClawClient:
     def provider_auth_status(self) -> RuntimeSessionResult:
         self._ensure_cli_available()
         self._ensure_workspace()
-        auth_status = self._probe_provider_auth(ignore_running_login=False)
+        auth_status = self._probe_provider_auth(ignore_running_login=False, live=False)
         connected = bool(auth_status["connected"])
         return RuntimeSessionResult(
             openclaw_session_id="",
@@ -308,6 +318,10 @@ class OpenClawClient:
     def _use_gateway_streams(self) -> bool:
         return os.getenv("OPENCLAW_USE_GATEWAY_STREAMS", "").lower() in {"1", "true", "yes", "on"}
 
+    def _use_direct_codex_streams(self) -> bool:
+        value = os.getenv("OPENCLAW_USE_DIRECT_CODEX_STREAMS", "1").lower()
+        return self.provider == "openai-codex" and value not in {"0", "false", "no", "off"}
+
     def _gateway_responds(self) -> bool:
         try:
             url = self.gateway_url.rstrip("/") + "/"
@@ -343,6 +357,8 @@ class OpenClawClient:
         )
         os.close(slave_fd)
         self._login_master_fd = master_fd
+        self._auth_cache = None
+        self._auth_cache_at = 0.0
         time.sleep(1)
         output = self._read_login_output()
         return {
@@ -350,17 +366,19 @@ class OpenClawClient:
             "diagnostic": output or "OpenClaw provider login process started.",
         }
 
-    def _probe_provider_auth(self, ignore_running_login: bool = False) -> Dict[str, Optional[str]]:
+    def _probe_provider_auth(self, ignore_running_login: bool = False, live: bool = False) -> Dict[str, Optional[str]]:
+        login_output = ""
         if self._login_process and self._login_process.poll() is None and not ignore_running_login:
-            output = self._read_login_output()
-            return {
-                "connected": False,
-                "login_url": self._extract_url(output),
-                "diagnostic": output or "OpenClaw provider login is still running.",
-            }
+            login_output = self._read_login_output()
 
+        if not live and self._auth_cache and time.time() - self._auth_cache_at < 10:
+            return self._auth_cache
+
+        cmd = [self.cli, "models", "status"]
+        if live:
+            cmd.append("--probe")
         result = subprocess.run(
-            [self.cli, "models", "status", "--probe"],
+            cmd,
             cwd=str(self.workspace),
             text=True,
             stdout=subprocess.PIPE,
@@ -374,11 +392,16 @@ class OpenClawClient:
             and self.provider in output
             and "ok expires" in output
         )
-        return {
+        diagnostic = output or login_output
+        status = {
             "connected": connected,
-            "login_url": self._extract_url(output),
-            "diagnostic": output,
+            "login_url": None if connected else self._extract_url(login_output or output),
+            "diagnostic": diagnostic,
         }
+        if not live:
+            self._auth_cache = status
+            self._auth_cache_at = time.time()
+        return status
 
     def _infer_model_run(
         self,
@@ -467,6 +490,63 @@ class OpenClawClient:
             ) from exc
         except URLError as exc:
             raise OpenClawError("openclaw_stream_failed", str(exc.reason)) from exc
+
+    def _stream_direct_codex_response(self, session_id: str, prompt: str) -> Iterator[Dict[str, object]]:
+        script_path = Path(__file__).with_name("codex_direct_stream.mjs")
+        body = {
+            "prompt": prompt,
+            "model": self.model,
+            "sessionId": session_id,
+            "transport": os.getenv("OPENCLAW_CODEX_DIRECT_TRANSPORT", "sse"),
+            "reasoning": os.getenv("OPENCLAW_CODEX_REASONING", "minimal"),
+        }
+        if debug_requests_enabled():
+            logger.info("CODEX DIRECT OUT model=%s transport=%s", body["model"], body["transport"])
+
+        process = subprocess.Popen(
+            ["node", str(script_path)],
+            cwd=str(self.workspace),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert process.stdin is not None
+        process.stdin.write(json.dumps(body))
+        process.stdin.close()
+
+        saw_event = False
+        assert process.stdout is not None
+        for raw_line in process.stdout:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            saw_event = True
+            if debug_requests_enabled():
+                if event.get("type") == "delta":
+                    logger.info("CODEX DIRECT IN delta_chars=%s", len(str(event.get("text") or "")))
+                else:
+                    logger.info("CODEX DIRECT IN %s", event)
+            if event.get("type") == "error":
+                raise OpenClawError(
+                    str(event.get("code") or "codex_direct_stream_failed"),
+                    str(event.get("message") or "Codex direct stream failed."),
+                )
+            yield event
+
+        stderr = ""
+        if process.stderr is not None:
+            stderr = process.stderr.read()
+        return_code = process.wait(timeout=5)
+        if return_code != 0 or not saw_event:
+            raise OpenClawError(
+                "codex_direct_stream_failed",
+                stderr.strip() or f"Codex direct stream exited with status {return_code}.",
+            )
 
     def _iter_response_stream(self, response: object) -> Iterator[Dict[str, object]]:
         usage: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0}

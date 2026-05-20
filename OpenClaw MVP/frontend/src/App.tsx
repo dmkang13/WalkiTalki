@@ -11,12 +11,30 @@ import {
   startAuthLogin,
   startAgentSession,
   startSession,
-  validateSkill,
 } from './api';
 import { Markdown } from './Markdown';
 import type { AgentFormValues, AgentSummary, AuthStatus, ChatMessage, ProductAgent, SessionRead } from './types';
 
 type RuntimeState = 'idle' | 'loading' | 'starting' | 'login_required' | 'ready' | 'sending' | 'error';
+const AUTH_CACHE_KEY = 'openclaw.authStatus';
+
+function readCachedAuthStatus(): AuthStatus | null {
+  try {
+    const raw = window.localStorage.getItem(AUTH_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as AuthStatus) : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberAuthStatus(status: AuthStatus): void {
+  if (status.provider_status === 'connected') {
+    window.localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(status));
+  } else {
+    window.localStorage.removeItem(AUTH_CACHE_KEY);
+  }
+}
+
 type Route =
   | { name: 'home' }
   | { name: 'build' }
@@ -281,7 +299,7 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
   const [agent, setAgent] = useState<ProductAgent | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [sessionInstructions, setSessionInstructions] = useState('');
-  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(() => readCachedAuthStatus());
   const [session, setSession] = useState<SessionRead | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -296,9 +314,28 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
 
   useEffect(() => {
     getAuthStatus()
-      .then(setAuthStatus)
+      .then((status) => {
+        rememberAuthStatus(status);
+        setAuthStatus(status);
+      })
       .catch((err: Error) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    if (authStatus?.provider_status !== 'login_required') return;
+    const poll = window.setInterval(() => {
+      getAuthStatus()
+        .then((status) => {
+          rememberAuthStatus(status);
+          setAuthStatus(status);
+          if (status.provider_status === 'connected') {
+            setRuntimeState('idle');
+          }
+        })
+        .catch((err: Error) => setError(err.message));
+    }, 500);
+    return () => window.clearInterval(poll);
+  }, [authStatus?.provider_status]);
 
   const isAuthenticated = authStatus?.provider_status === 'connected';
   const canChat = session?.runtime_status === 'ready' && session.provider_status === 'connected';
@@ -321,25 +358,16 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
     }
   }
 
-  async function handleConfirmLogin() {
-    setRuntimeState('starting');
-    setError(null);
-    try {
-      const next = await getAuthStatus();
-      setAuthStatus(next);
-      setRuntimeState(next.provider_status === 'connected' ? 'idle' : 'login_required');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not confirm login.');
-      setRuntimeState('error');
-    }
-  }
-
   async function handleProviderLogin() {
     setRuntimeState('starting');
     setError(null);
     try {
       const next = await startAuthLogin();
+      rememberAuthStatus(next);
       setAuthStatus(next);
+      if (next.login_url) {
+        window.open(next.login_url, '_blank', 'noopener,noreferrer');
+      }
       setRuntimeState('login_required');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start provider login.');
@@ -414,15 +442,13 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
             <button className="primary" onClick={handleProviderLogin} disabled={runtimeState === 'starting'}>
               Open ChatGPT Login
             </button>
-            <button className="secondary" onClick={handleConfirmLogin} disabled={runtimeState === 'starting'}>
-              I Completed Login
-            </button>
           </div>
           {authStatus?.login_url && (
             <a className="secondary link-button" href={authStatus.login_url} target="_blank" rel="noreferrer">
               Continue OAuth
             </a>
           )}
+          {runtimeState === 'login_required' && <div className="empty-state">Waiting for OpenClaw to finish authentication...</div>}
         </section>
       )}
 
@@ -481,14 +507,13 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
 
 function ValidationPage() {
   const [agent, setAgent] = useState<AgentSummary | null>(null);
-  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(() => readCachedAuthStatus());
   const [session, setSession] = useState<SessionRead | null>(null);
   const [runtimeState, setRuntimeState] = useState<RuntimeState>('loading');
   const [customInstructions, setCustomInstructions] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [skillEvidence, setSkillEvidence] = useState<string | null>(null);
 
   useEffect(() => {
     getAgent()
@@ -504,9 +529,28 @@ function ValidationPage() {
 
   useEffect(() => {
     getAuthStatus()
-      .then(setAuthStatus)
+      .then((status) => {
+        rememberAuthStatus(status);
+        setAuthStatus(status);
+      })
       .catch((err: Error) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    if (authStatus?.provider_status !== 'login_required') return;
+    const poll = window.setInterval(() => {
+      getAuthStatus()
+        .then((status) => {
+          rememberAuthStatus(status);
+          setAuthStatus(status);
+          if (status.provider_status === 'connected') {
+            setRuntimeState('idle');
+          }
+        })
+        .catch((err: Error) => setError(err.message));
+    }, 500);
+    return () => window.clearInterval(poll);
+  }, [authStatus?.provider_status]);
 
   const isAuthenticated = authStatus?.provider_status === 'connected';
   const canUseRuntime = session?.runtime_status === 'ready' && session.provider_status === 'connected';
@@ -530,25 +574,16 @@ function ValidationPage() {
     }
   }
 
-  async function handleConfirmLogin() {
-    setError(null);
-    setRuntimeState('starting');
-    try {
-      const next = await getAuthStatus();
-      setAuthStatus(next);
-      setRuntimeState(next.provider_status === 'connected' ? 'idle' : 'login_required');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not confirm login.');
-      setRuntimeState('error');
-    }
-  }
-
   async function handleProviderLogin() {
     setError(null);
     setRuntimeState('starting');
     try {
       const next = await startAuthLogin();
+      rememberAuthStatus(next);
       setAuthStatus(next);
+      if (next.login_url) {
+        window.open(next.login_url, '_blank', 'noopener,noreferrer');
+      }
       setRuntimeState('login_required');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start provider login.');
@@ -581,26 +616,10 @@ function ValidationPage() {
     }
   }
 
-  async function handleSkillValidation() {
-    setError(null);
-    setRuntimeState('sending');
-    try {
-      const result = await validateSkill();
-      setSkillEvidence(result.evidence);
-      setMessages((current) => [...current, { role: 'assistant', content: result.message }]);
-      setSession((current) => current && { ...current, skill_status: result.skill_status });
-      setRuntimeState('ready');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not validate skill.');
-      setRuntimeState('error');
-    }
-  }
-
   async function handleReset() {
     await resetSession();
     setSession(null);
     setMessages([]);
-    setSkillEvidence(null);
     setRuntimeState('idle');
   }
 
@@ -652,9 +671,7 @@ function ValidationPage() {
                   Continue OAuth
                 </a>
               )}
-              <button className="secondary" onClick={handleConfirmLogin} disabled={runtimeState === 'starting'}>
-                I completed login
-              </button>
+              {runtimeState === 'login_required' && <div className="empty-state">Waiting for OpenClaw to finish authentication...</div>}
             </>
           )}
           {isAuthenticated && !session && (
@@ -673,11 +690,7 @@ function ValidationPage() {
               <h2>Chat</h2>
               <p>Text-only OpenClaw runtime validation.</p>
             </div>
-            <button onClick={handleSkillValidation} disabled={!canUseRuntime || runtimeState === 'sending'}>
-              Validate Skill
-            </button>
           </div>
-          {skillEvidence && <div className="skill-evidence">{skillEvidence}</div>}
           <div className="messages">
             {messages.length === 0 && (
               <div className="empty-state">
