@@ -47,6 +47,30 @@ function appendAssistantDelta(setMessages: Dispatch<SetStateAction<ChatMessage[]
   });
 }
 
+function scrollLatestAssistantToTop() {
+  window.requestAnimationFrame(() => {
+    const assistants = document.querySelectorAll<HTMLElement>('.message.assistant');
+    const latest = assistants[assistants.length - 1];
+    latest?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+function MessageBody({ message }: { message: ChatMessage }) {
+  if (message.role === 'assistant' && !message.content) {
+    return (
+      <div>
+        <br/>
+        <div className="thinking-line" aria-live="polite">
+          <span className="spinner" aria-hidden="true" />
+          <span>Thinking...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return <Markdown text={message.content} />;
+}
+
 type Route =
   | { name: 'home' }
   | { name: 'build' }
@@ -377,6 +401,7 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
   async function streamOpeningLesson(activeShareSlug: string) {
     setRuntimeState('sending');
     setMessages([{ role: 'assistant', content: '' }]);
+    scrollLatestAssistantToTop();
     await sendChatStream(
       OPENING_LESSON_PROMPT,
       (text) => appendAssistantDelta(setMessages, text),
@@ -410,6 +435,7 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
     setError(null);
     setRuntimeState('sending');
     setMessages((current) => [...current, { role: 'user', content: message }, { role: 'assistant', content: '' }]);
+    scrollLatestAssistantToTop();
     try {
       await sendChatStream(
         message,
@@ -498,7 +524,7 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
             messages.map((message, index) => (
               <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
                 <span>{message.role}</span>
-                <Markdown text={message.content || '...'} />
+                <MessageBody message={message} />
               </article>
             ))
           )}
@@ -600,6 +626,7 @@ function ValidationPage() {
   async function streamOpeningLesson() {
     setRuntimeState('sending');
     setMessages([{ role: 'assistant', content: '' }]);
+    scrollLatestAssistantToTop();
     await sendChatStream(OPENING_LESSON_PROMPT, (text) => appendAssistantDelta(setMessages, text));
     setRuntimeState('ready');
   }
@@ -629,6 +656,7 @@ function ValidationPage() {
     setError(null);
     setRuntimeState('sending');
     setMessages((current) => [...current, { role: 'user', content: message }, { role: 'assistant', content: '' }]);
+    scrollLatestAssistantToTop();
     try {
       await sendChatStream(message, (text) => appendAssistantDelta(setMessages, text));
       setRuntimeState('ready');
@@ -722,7 +750,7 @@ function ValidationPage() {
             {messages.map((message, index) => (
               <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
                 <span>{message.role}</span>
-                <Markdown text={message.content || '...'} />
+                <MessageBody message={message} />
               </article>
             ))}
           </div>

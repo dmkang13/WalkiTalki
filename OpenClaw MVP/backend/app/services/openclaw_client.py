@@ -6,10 +6,11 @@ import pty
 import re
 import shutil
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterator, Optional
+from typing import Dict, Iterator, Optional, TextIO
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
@@ -62,6 +63,13 @@ class SkillResult:
     evidence: str
 
 
+@dataclass
+class CodexStreamWorker:
+    process: subprocess.Popen[str]
+    lock: threading.Lock
+    stderr_log: TextIO
+
+
 class OpenClawClient:
     """Real OpenClaw CLI/gateway adapter.
 
@@ -83,6 +91,8 @@ class OpenClawClient:
         self._sessions: Dict[str, Dict[str, Optional[str]]] = {}
         self._auth_cache: Optional[Dict[str, Optional[str]]] = None
         self._auth_cache_at = 0.0
+        self._stream_workers: Dict[str, CodexStreamWorker] = {}
+        self._stream_workers_lock = threading.Lock()
 
     def create_session(
         self,
@@ -91,7 +101,8 @@ class OpenClawClient:
     ) -> RuntimeSessionResult:
         self._ensure_cli_available()
         self._ensure_workspace()
-        self._ensure_gateway_running()
+        if not self._use_direct_codex_streams():
+            self._ensure_gateway_running()
 
         auth_status = self._probe_provider_auth(ignore_running_login=True)
         if not auth_status["connected"]:
@@ -151,14 +162,21 @@ class OpenClawClient:
             prompt=self._build_text_prompt(session, message)
         )
 
-    def stream_text(self, session_id: str, message: str) -> Iterator[Dict[str, object]]:
+    def stream_text(
+        self,
+        session_id: str,
+        message: str,
+        worker_key: Optional[str] = None,
+    ) -> Iterator[Dict[str, object]]:
         session = self._require_session(session_id)
         prompt = self._build_text_prompt(session, message)
         if self._use_direct_codex_streams():
             try:
-                yield from self._stream_direct_codex_response(session_id, prompt)
+                yield from self._stream_direct_codex_response(worker_key or session_id, session_id, prompt)
                 return
             except OpenClawError as exc:
+                if not self._allow_direct_codex_fallback():
+                    raise
                 if debug_requests_enabled():
                     logger.info("CODEX DIRECT fallback code=%s message=%s", exc.code, exc.message)
 
@@ -175,6 +193,39 @@ class OpenClawClient:
             raise
         except Exception as exc:
             raise OpenClawError("openclaw_stream_failed", str(exc)) from exc
+
+    def warm_stream_worker(self, worker_key: str) -> None:
+        if not self._use_direct_codex_streams():
+            return
+        worker = self._get_codex_stream_worker(worker_key)
+        body = {"requestId": uuid4().hex, "type": "warm"}
+        with worker.lock:
+            process = worker.process
+            if process.stdin is None or process.stdout is None:
+                self._discard_codex_stream_worker(worker_key)
+                return
+            try:
+                process.stdin.write(json.dumps(body) + "\n")
+                process.stdin.flush()
+            except OSError:
+                self._discard_codex_stream_worker(worker_key)
+                return
+
+            for raw_line in process.stdout:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") == "ready":
+                    continue
+                if event.get("requestId") != body["requestId"]:
+                    continue
+                if debug_requests_enabled():
+                    logger.info("CODEX DIRECT warm %s", event.get("type"))
+                return
 
     def begin_provider_login(self) -> RuntimeSessionResult:
         self._ensure_cli_available()
@@ -321,6 +372,9 @@ class OpenClawClient:
     def _use_direct_codex_streams(self) -> bool:
         value = os.getenv("OPENCLAW_USE_DIRECT_CODEX_STREAMS", "1").lower()
         return self.provider == "openai-codex" and value not in {"0", "false", "no", "off"}
+
+    def _allow_direct_codex_fallback(self) -> bool:
+        return os.getenv("OPENCLAW_DIRECT_CODEX_FALLBACK", "").lower() in {"1", "true", "yes", "on"}
 
     def _gateway_responds(self) -> bool:
         try:
@@ -491,9 +545,14 @@ class OpenClawClient:
         except URLError as exc:
             raise OpenClawError("openclaw_stream_failed", str(exc.reason)) from exc
 
-    def _stream_direct_codex_response(self, session_id: str, prompt: str) -> Iterator[Dict[str, object]]:
-        script_path = Path(__file__).with_name("codex_direct_stream.mjs")
+    def _stream_direct_codex_response(
+        self,
+        worker_key: str,
+        session_id: str,
+        prompt: str,
+    ) -> Iterator[Dict[str, object]]:
         body = {
+            "requestId": uuid4().hex,
             "prompt": prompt,
             "model": self.model,
             "sessionId": session_id,
@@ -503,50 +562,93 @@ class OpenClawClient:
         if debug_requests_enabled():
             logger.info("CODEX DIRECT OUT model=%s transport=%s", body["model"], body["transport"])
 
-        process = subprocess.Popen(
-            ["node", str(script_path)],
-            cwd=str(self.workspace),
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        assert process.stdin is not None
-        process.stdin.write(json.dumps(body))
-        process.stdin.close()
+        worker = self._get_codex_stream_worker(worker_key)
+        with worker.lock:
+            process = worker.process
+            if process.stdin is None or process.stdout is None:
+                self._discard_codex_stream_worker(worker_key)
+                raise OpenClawError("codex_direct_stream_failed", "Codex stream worker is not writable.")
 
-        saw_event = False
-        assert process.stdout is not None
-        for raw_line in process.stdout:
-            line = raw_line.strip()
-            if not line:
-                continue
             try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            saw_event = True
-            if debug_requests_enabled():
-                if event.get("type") == "delta":
-                    logger.info("CODEX DIRECT IN delta_chars=%s", len(str(event.get("text") or "")))
-                else:
-                    logger.info("CODEX DIRECT IN %s", event)
-            if event.get("type") == "error":
-                raise OpenClawError(
-                    str(event.get("code") or "codex_direct_stream_failed"),
-                    str(event.get("message") or "Codex direct stream failed."),
-                )
-            yield event
+                process.stdin.write(json.dumps(body) + "\n")
+                process.stdin.flush()
+            except OSError as exc:
+                self._discard_codex_stream_worker(worker_key)
+                raise OpenClawError("codex_direct_stream_failed", str(exc)) from exc
 
-        stderr = ""
-        if process.stderr is not None:
-            stderr = process.stderr.read()
-        return_code = process.wait(timeout=5)
-        if return_code != 0 or not saw_event:
-            raise OpenClawError(
-                "codex_direct_stream_failed",
-                stderr.strip() or f"Codex direct stream exited with status {return_code}.",
+            saw_event = False
+            for raw_line in process.stdout:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") == "ready":
+                    continue
+                if event.get("requestId") != body["requestId"]:
+                    continue
+                saw_event = True
+                if debug_requests_enabled():
+                    if event.get("type") == "delta":
+                        logger.info("CODEX DIRECT IN delta_chars=%s", len(str(event.get("text") or "")))
+                    else:
+                        logger.info("CODEX DIRECT IN %s", event)
+                if event.get("type") == "error":
+                    raise OpenClawError(
+                        str(event.get("code") or "codex_direct_stream_failed"),
+                        str(event.get("message") or "Codex direct stream failed."),
+                    )
+
+                clean_event = {key: value for key, value in event.items() if key != "requestId"}
+                yield clean_event
+                if event.get("type") == "done":
+                    return
+
+        if not saw_event:
+            self._discard_codex_stream_worker(worker_key)
+            raise OpenClawError("codex_direct_stream_failed", "Codex stream worker exited without events.")
+
+    def _get_codex_stream_worker(self, worker_key: str) -> CodexStreamWorker:
+        with self._stream_workers_lock:
+            worker = self._stream_workers.get(worker_key)
+            if worker and worker.process.poll() is None:
+                return worker
+            if worker:
+                self._close_codex_stream_worker(worker)
+
+            script_path = Path(__file__).with_name("codex_direct_stream.mjs")
+            self.log_dir.mkdir(parents=True, exist_ok=True)
+            stderr_log = (self.log_dir / "codex-stream-worker.log").open("a", encoding="utf-8")
+            process = subprocess.Popen(
+                ["node", str(script_path)],
+                cwd=str(self.workspace),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=stderr_log,
+                text=True,
+                bufsize=1,
             )
+            worker = CodexStreamWorker(process=process, lock=threading.Lock(), stderr_log=stderr_log)
+            self._stream_workers[worker_key] = worker
+            return worker
+
+    def _discard_codex_stream_worker(self, worker_key: str) -> None:
+        with self._stream_workers_lock:
+            worker = self._stream_workers.pop(worker_key, None)
+        if worker:
+            self._close_codex_stream_worker(worker)
+
+    def _close_codex_stream_worker(self, worker: CodexStreamWorker) -> None:
+        try:
+            worker.process.terminate()
+        except OSError:
+            pass
+        try:
+            worker.stderr_log.close()
+        except OSError:
+            pass
 
     def _iter_response_stream(self, response: object) -> Iterator[Dict[str, object]]:
         usage: Dict[str, int] = {"input_tokens": 0, "output_tokens": 0}

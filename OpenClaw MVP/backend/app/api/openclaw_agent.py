@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 from typing import Iterator, Optional
 
 from fastapi import APIRouter, Cookie, HTTPException, Response
@@ -156,6 +157,7 @@ def start_session(
         model=runtime.model,
         provider=runtime.provider,
     )
+    threading.Thread(target=openclaw_client.warm_stream_worker, args=(browser_id,), daemon=True).start()
     return SessionRead.from_record(record)
 
 
@@ -185,6 +187,7 @@ def start_agent_session(
         model=runtime.model,
         provider=runtime.provider,
     )
+    threading.Thread(target=openclaw_client.warm_stream_worker, args=(browser_id,), daemon=True).start()
     return SessionRead.from_record(record)
 
 
@@ -282,7 +285,7 @@ def stream_chat(
         chunks: list[str] = []
         yield sse_event({"type": "start"})
         try:
-            for event in openclaw_client.stream_text(record.openclaw_session_id, payload.message):
+            for event in openclaw_client.stream_text(record.openclaw_session_id, payload.message, worker_key=browser_id):
                 if event.get("type") == "delta":
                     text = str(event.get("text") or "")
                     chunks.append(text)
@@ -323,7 +326,7 @@ def stream_agent_chat(
         chunks: list[str] = []
         yield sse_event({"type": "start"})
         try:
-            for event in openclaw_client.stream_text(record.openclaw_session_id, payload.message):
+            for event in openclaw_client.stream_text(record.openclaw_session_id, payload.message, worker_key=browser_id):
                 if event.get("type") == "delta":
                     text = str(event.get("text") or "")
                     chunks.append(text)

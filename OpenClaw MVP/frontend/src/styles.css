@@ -376,6 +376,31 @@ textarea {
   background: #eef1dd;
 }
 
+.thinking-line {
+  align-items: center;
+  color: #4f6157;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.spinner {
+  animation: spin 0.8s linear infinite;
+  border: 3px solid #d8e2dc;
+  border-top-color: #1f6b4f;
+  border-radius: 50%;
+  display: inline-block;
+  height: 18px;
+  width: 18px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .markdown h2,
 .markdown h3,
 .markdown p {
