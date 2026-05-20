@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   createAgent,
   getAgent,
@@ -17,6 +17,8 @@ import type { AgentFormValues, AgentSummary, AuthStatus, ChatMessage, ProductAge
 
 type RuntimeState = 'idle' | 'loading' | 'starting' | 'login_required' | 'ready' | 'sending' | 'error';
 const AUTH_CACHE_KEY = 'openclaw.authStatus';
+const OPENING_LESSON_PROMPT =
+  'Start this chat session with a concise, useful language lesson. Include a short vocabulary section, two practical phrases, and one practice question. Do not ask what the learner wants to do first.';
 
 function readCachedAuthStatus(): AuthStatus | null {
   try {
@@ -33,6 +35,16 @@ function rememberAuthStatus(status: AuthStatus): void {
   } else {
     window.localStorage.removeItem(AUTH_CACHE_KEY);
   }
+}
+
+function appendAssistantDelta(setMessages: Dispatch<SetStateAction<ChatMessage[]>>, text: string) {
+  setMessages((current) => {
+    const next = [...current];
+    const last = next[next.length - 1];
+    if (last?.role !== 'assistant') return current;
+    next[next.length - 1] = { ...last, content: last.content + text };
+    return next;
+  });
 }
 
 type Route =
@@ -351,11 +363,26 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
     try {
       const next = await startAgentSession(shareSlug, sessionInstructions);
       setSession(next);
-      setRuntimeState(next.provider_status === 'login_required' ? 'login_required' : 'ready');
+      if (next.provider_status === 'login_required') {
+        setRuntimeState('login_required');
+        return;
+      }
+      await streamOpeningLesson(shareSlug);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start runtime session.');
       setRuntimeState('error');
     }
+  }
+
+  async function streamOpeningLesson(activeShareSlug: string) {
+    setRuntimeState('sending');
+    setMessages([{ role: 'assistant', content: '' }]);
+    await sendChatStream(
+      OPENING_LESSON_PROMPT,
+      (text) => appendAssistantDelta(setMessages, text),
+      activeShareSlug,
+    );
+    setRuntimeState('ready');
   }
 
   async function handleProviderLogin() {
@@ -386,15 +413,7 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
     try {
       await sendChatStream(
         message,
-        (text) => {
-          setMessages((current) => {
-            const next = [...current];
-            const last = next[next.length - 1];
-            if (last?.role !== 'assistant') return current;
-            next[next.length - 1] = { ...last, content: last.content + text };
-            return next;
-          });
-        },
+        (text) => appendAssistantDelta(setMessages, text),
         shareSlug,
       );
       setRuntimeState('ready');
@@ -473,7 +492,7 @@ function AgentChatPage({ shareSlug }: { shareSlug: string }) {
         <div className="messages">
           {messages.length === 0 ? (
             <div className="empty-state">
-              {isAuthenticated ? 'Start the OpenClaw session, then ask the agent a text question.' : 'Log in first to unlock agent chat.'}
+              {isAuthenticated ? 'Start the OpenClaw session to begin with a lesson.' : 'Log in first to unlock agent chat.'}
             </div>
           ) : (
             messages.map((message, index) => (
@@ -567,11 +586,22 @@ function ValidationPage() {
     try {
       const next = await startSession(customInstructions);
       setSession(next);
-      setRuntimeState(next.provider_status === 'login_required' ? 'login_required' : 'ready');
+      if (next.provider_status === 'login_required') {
+        setRuntimeState('login_required');
+        return;
+      }
+      await streamOpeningLesson();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start session.');
       setRuntimeState('error');
     }
+  }
+
+  async function streamOpeningLesson() {
+    setRuntimeState('sending');
+    setMessages([{ role: 'assistant', content: '' }]);
+    await sendChatStream(OPENING_LESSON_PROMPT, (text) => appendAssistantDelta(setMessages, text));
+    setRuntimeState('ready');
   }
 
   async function handleProviderLogin() {
@@ -600,15 +630,7 @@ function ValidationPage() {
     setRuntimeState('sending');
     setMessages((current) => [...current, { role: 'user', content: message }, { role: 'assistant', content: '' }]);
     try {
-      await sendChatStream(message, (text) => {
-        setMessages((current) => {
-          const next = [...current];
-          const last = next[next.length - 1];
-          if (last?.role !== 'assistant') return current;
-          next[next.length - 1] = { ...last, content: last.content + text };
-          return next;
-        });
-      });
+      await sendChatStream(message, (text) => appendAssistantDelta(setMessages, text));
       setRuntimeState('ready');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send chat message.');
@@ -694,7 +716,7 @@ function ValidationPage() {
           <div className="messages">
             {messages.length === 0 && (
               <div className="empty-state">
-                {isAuthenticated ? 'Start a session, then send text.' : 'Log in first to unlock chat.'}
+                {isAuthenticated ? 'Start a session to begin with a lesson.' : 'Log in first to unlock chat.'}
               </div>
             )}
             {messages.map((message, index) => (

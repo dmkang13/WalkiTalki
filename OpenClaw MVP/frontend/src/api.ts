@@ -142,6 +142,7 @@ export async function sendChatStream(
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
     },
     body: JSON.stringify({ message }),
   });
@@ -161,13 +162,15 @@ export async function sendChatStream(
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
+    const frames = buffer.split(/\n\n/);
+    buffer = frames.pop() ?? '';
 
-    for (const line of lines) {
-      const event = parseStreamEvent(line);
+    for (const frame of frames) {
+      const event = parseStreamEvent(frame);
       if (!event) continue;
-      if (event.type === 'delta') {
+      if (event.type === 'start') {
+        continue;
+      } else if (event.type === 'delta') {
         onDelta(event.text);
       } else if (event.type === 'done') {
         usage = event.usage ?? null;
@@ -192,7 +195,15 @@ export async function sendChatStream(
 function parseStreamEvent(line: string): ChatStreamEvent | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
-  return JSON.parse(trimmed) as ChatStreamEvent;
+  if (trimmed.startsWith('{')) return JSON.parse(trimmed) as ChatStreamEvent;
+
+  const data = trimmed
+    .split('\n')
+    .filter((part) => part.startsWith('data:'))
+    .map((part) => part.slice(5).trimStart())
+    .join('\n')
+    .trim();
+  return data ? (JSON.parse(data) as ChatStreamEvent) : null;
 }
 
 export function validateSkill(): Promise<SkillValidationResponse> {

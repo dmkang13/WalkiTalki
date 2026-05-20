@@ -33,6 +33,11 @@ openclaw_client = OpenClawClient()
 SESSION_COOKIE = "openclaw_browser_session"
 
 
+def sse_event(event: dict) -> str:
+    event_type = str(event.get("type") or "message")
+    return f"event: {event_type}\ndata: {json.dumps(event)}\n\n"
+
+
 def get_browser_session_id(response: Response, existing: Optional[str]) -> str:
     session_id = existing or session_store.create_browser_session_id()
     if not existing:
@@ -275,27 +280,32 @@ def stream_chat(
 
     def events() -> Iterator[str]:
         chunks: list[str] = []
+        yield sse_event({"type": "start"})
         try:
             for event in openclaw_client.stream_text(record.openclaw_session_id, payload.message):
                 if event.get("type") == "delta":
                     text = str(event.get("text") or "")
                     chunks.append(text)
-                yield json.dumps(event) + "\n"
+                yield sse_event(event)
         except OpenClawError as exc:
-            yield json.dumps(
+            yield sse_event(
                 {
                     "type": "error",
                     "code": exc.code,
                     "message": exc.message,
                 }
-            ) + "\n"
+            )
             return
 
         assistant_message = "".join(chunks)
         if assistant_message:
             session_store.append_message(browser_id, "assistant", assistant_message)
 
-    return StreamingResponse(events(), media_type="application/x-ndjson")
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/agents/{share_slug}/chat/stream")
@@ -311,20 +321,21 @@ def stream_agent_chat(
 
     def events() -> Iterator[str]:
         chunks: list[str] = []
+        yield sse_event({"type": "start"})
         try:
             for event in openclaw_client.stream_text(record.openclaw_session_id, payload.message):
                 if event.get("type") == "delta":
                     text = str(event.get("text") or "")
                     chunks.append(text)
-                yield json.dumps(event) + "\n"
+                yield sse_event(event)
         except OpenClawError as exc:
-            yield json.dumps(
+            yield sse_event(
                 {
                     "type": "error",
                     "code": exc.code,
                     "message": exc.message,
                 }
-            ) + "\n"
+            )
             return
 
         assistant_message = "".join(chunks)
@@ -332,7 +343,11 @@ def stream_agent_chat(
             session_store.append_message(browser_id, "user", payload.message)
             session_store.append_message(browser_id, "assistant", assistant_message)
 
-    return StreamingResponse(events(), media_type="application/x-ndjson")
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/skill-validation", response_model=SkillValidationResponse)

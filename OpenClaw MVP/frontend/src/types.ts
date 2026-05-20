@@ -73,6 +73,9 @@ export type ChatResponse = {
 
 export type ChatStreamEvent =
   | {
+      type: 'start';
+    }
+  | {
       type: 'delta';
       text: string;
     }
